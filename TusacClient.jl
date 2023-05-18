@@ -4275,12 +4275,16 @@ while true
     cmd = readline(nwMaster)
     println("Receive cmd = ",cmd)
     reply = readline()
-    if reply == "="
-        local a = split(cmd,",")
-        reply = a[4]
-    end
+    reply = reply == "" ? "=" : reply
     println("Sending:",reply,".")
     println(nwMaster,reply)
+   
+    if reply == ""
+        exit()
+    end
+
+
     moveStr = readline(nwMaster)
+    println(nwMaster,"+")
     println("mv array",moveStr)
 end
