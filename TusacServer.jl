@@ -4316,20 +4316,25 @@ end
 
 nextPlayer(p) = p == 4 ? 1 : p + 1
 prevPlayer(p) = p == 1 ? 4 : p - 1
+function checkWrite(i,str)
+    global writeData
+    while writeData[i] != ""
+        sleep(.2)
+    end
+    writeData[i] = str
+end
+
 function sendToSocket(player,activePlayer,activeCard, aiCMD,wsCMD)
     global writeData
-    println("sendCMD to socket ($player): ",ts(activeCard),wsCMD,ts(aiCMD))
+    println("Player $player sendCMD ($player): ",ts(activeCard),wsCMD,ts(aiCMD))
     astr = string(activePlayer,",",ts(activeCard),",",wsCMD,",",ts(aiCMD),",")
-    writeData[player] = astr
+   
+    checkWrite(player,astr)
 end
 
 function waitForSocket(player,aiCMD,wsCMD)
     global writeData, readData
-    """
-    while(length(writeData[player]) > 0)
-        sleep(1)
-    end
-    """
+    
     while(length(readData[player]) == 0)
         sleep(1)
     end
@@ -4356,6 +4361,7 @@ const PTsocket = 1
 const PTai = 0
 playersType = [PTai,PTai,PTai,PTai]
 playersTypeLive = [PTai,PTai,PTai,PTai]
+playersTypeDelay = [PTai,PTai,PTai,PTai]
 
 i = 0
 
@@ -4503,8 +4509,12 @@ function doMain()
             for i in 1:4
                 if playersType[i] == PTsocket
                     println("Sending To socket ",i) 
-                    writeData[i] = TuSacManager.string_mvArray()
+                    checkWrite(i,TuSacManager.string_mvArray())
                 end
+                if playersTypeDelay[i] > PTai
+                    playersTypeDelay[i] -= 1
+                end
+
             end
         end
        # exit()
@@ -4512,37 +4522,42 @@ function doMain()
     end
 end
 
- 
-
 function doNW()
     while true
         global i
-        global readyToRead,writeData,readData,playersType,playersTypeLive
-        conn = accept(server)
+        global readyToRead,writeData,readData,playersType,playersTypeLive,playersTypeDelay
         i = 0
         for j in 1:4
-            if playersTypeLive[j] == PTai
+            if playersTypeLive[j] + playersTypeDelay[j] == PTai
                 i = j
                 break
             end
         end
-        println("Accepted: ",i)
-        clientId = i
-        writeData[i] = ""
-        readData[i] = ""
-        playersTypeLive[clientId] = PTsocket
-        playersSocket[clientId] = conn
-        TuSacManager.printTable(conn)
-        TuSacManager.printCoins(conn)
-        @spawn networkLoop(clientId,conn)
+        if i != 0
+            conn = accept(server)
+            println("Accepted: ",i)
+            clientId = i
+            writeData[i] = ""
+            readData[i] = ""
+            playersTypeLive[clientId] = PTsocket
+            playersSocket[clientId] = conn
+            TuSacManager.printTable(conn)
+            TuSacManager.printCoins(conn)
+            @spawn networkLoop(clientId,conn)
+        else
+            sleep(4)
+        end
     end
 end
 
 function cleanup(myID)
     global readData[myID] = "="
     global writeData[myID] = ""
+    
     global playersTypeLive[myID] = PTai
+    global playersTypeDelay[myID] = PTsocket 
     global playersType[myID] = PTai
+    println("Player $myId disconnected")
     return
 end
 
@@ -4553,20 +4568,15 @@ function networkLoop(myId,myConn)
             sleep(.2)
         end
         line = writeData[myId]
-        writeData[myId] = ""
         try
             println(myConn,line)
+            println("Socket $myId send ",line)
+
         catch e
             cleanup(myId)
             return
         end
 
-        while   (length(writeData[1]) +
-                length(writeData[2]) +
-                length(writeData[3]) +
-                length(writeData[4]) ) > 0 
-                sleep(.2)
-        end
         try
             line =  readline(myConn)
             if line == ""
@@ -4574,9 +4584,13 @@ function networkLoop(myId,myConn)
                 return
             elseif line == "+"
                 #nothing ... chew this
+                println("Socket $myId Ack \"+\" ")
             else
                 readData[myId] = line
+                println("Socket $myId Reply \"$line\" ")
             end
+            writeData[myId] = ""
+
         catch e
             cleanup(myId)
             return
