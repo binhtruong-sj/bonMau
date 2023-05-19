@@ -91,7 +91,6 @@ histFile = false
 reloadFile = false
 connectedPlayer = 0
 nameSynced = true
-serverSetup = false
 trial = false
 atest = []
 tstMoveArray = []
@@ -115,154 +114,6 @@ a =cmpPoints(2,1,3)
 emBaiLimit = [a,a,a,a]
 println("Default Em-bai limit = ",emBaiLimit)
 
-module nwAPI
-    using Sockets
-    export nw_sendToMaster, nw_sendTextToMaster,nw_receiveFromMaster,nw_receiveFromPlayer,nw_receiveTextFromPlayer,
-    nw_sentToPlayer, nw_getR, serverSetup, clientSetup, allwPrint
-    allowPrint = 0
-    okToPrint(a) = allowPrint&a != 0
-
-    function serverSetup(serverIP,port)
-        #return(listen(serverIP,port))
-        return(listen(port))
-    end
-
-    function acceptClient(s)
-        return(accept(s))
-    end
-    function clientSetup(serverURL,port)
-        try
-            ac = connect(serverURL,port)
-            return ac
-        catch
-            @warn "Server is not available"
-            return 0
-        end
-    end
-    function allwPrint(a)
-        allowPrint = a
-    end
-    function nw_sendToMaster(id,connection,arr)
-
-    l = length(arr)
-    if okToPrint(0x1)
-        println(id,"  nwAPI Send to Master DATA=",(arr,l))
-    end
-        if l != 112
-            s_arr = Vector{UInt8}(undef,8)
-
-            s_arr[1] = l
-            for (i,a) in enumerate(arr)
-                s_arr[i+1] = a
-            end
-            if okToPrint(0x1)
-            println("Data = ",s_arr)
-            end
-        else
-            s_arr = Vector{UInt8}(undef,l)
-
-            for (i,a) in enumerate(arr)
-                s_arr[i] = a
-            end
-        end
-        write(connection,s_arr)
-    end
-
-    function nw_sendTextToMaster(id,connection,txt)
-        println(connection,txt)
-    end
-
-    function nw_receiveTextFromMaster(connection)
-        return readline(connection)
-    end
-
-
-    function nw_receiveFromMaster(connection,bytecnt)
-        if okToPrint(0x1)
-            println(" nwAPI receive from Master")
-        end
-        arr = []
-    while true
-            arr = read(connection,bytecnt)
-            if length(arr) != bytecnt
-                println(length(arr),"!=",bytecnt)
-                    exit()
-            else
-                break
-            end
-        end
-        if okToPrint(0x1)
-        println("nwAPI received ",arr," from master ")
-        end
-        return(arr)
-    end
-
-    function nw_receiveFromPlayer(id,connection,bytecnt)
-        global msgPic
-        arr = []
-        if okToPrint(0x1)
-        println(" nwAPI received from Player ", id )
-        end
-
-        while true
-            arr = read(connection,bytecnt)
-            if length(arr) != bytecnt
-                println(length(arr),"!=",bytecnt)
-                exit()
-            else
-                break
-            end
-        end
-        if okToPrint(0x1)
-        println("nwAPImaster received ",arr)
-        end
-    return(arr)
-    end
-
-    function nw_receiveTextFromPlayer(id,connection)
-        return readline(connection)
-    end
-
-    function nw_sendTextToPlayer(id, connection, txt)
-        if okToPrint(0x1)
-        println("Sending text=",txt," to ",id)
-        end
-        println(connection,txt)
-    end
-
-    function nw_sendToPlayer(id, connection, arr)
-        l = length(arr)
-        if okToPrint(0x1)
-        println("nwAPISend to Player ",id,"  DATA=",(arr,l))
-        end
-
-        if l != 112
-            s_arr = Vector{UInt8}(undef,8)
-            s_arr[1] = l
-            for (i,a) in enumerate(arr)
-                s_arr[i+1] = a
-            end
-            if okToPrint(0x1)
-            println("Data = ",s_arr)
-            end
-        else
-
-            s_arr = Vector{UInt8}(undef,l)
-            for (i,a) in enumerate(arr)
-                s_arr[i] = a
-            end
-        end
-
-        write(connection,s_arr)
-    end
-    function nw_getR(nw)
-        n = []
-        for i in 1:nw[1]
-            push!(n,nw[i+1])
-        end
-        return n
-    end
-end
 
 module TuSacCards
     using Random: randperm
@@ -3270,9 +3121,8 @@ function config(fn)
                 serverPort = parse(Int,rl[3])
             elseif lcCmp(keyword,"myIP")
                 serverIP = getaddrinfo(string(rl[2]))
-                if okToPrint(0x1)
-                println(serverIP)
-                end
+                println("serverIP ",serverIP)
+               
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
             elseif lcCmp(keyword,"generic")
@@ -3866,314 +3716,6 @@ function getData_all_hands()
     end
 end
 
-
-function playersSyncDeck!(deck::TuSacCards.Deck)
-    global myPlayer
-
-    isMaster = (PlayerList[myPlayer] != plSocket)
-    if okToPrint(0x1)
-        println("in SYNC DECK MY player", myPlayer)
-        println(PlayerList)
-    end
-    if mode == m_server
-            if okToPrint(0x1)
-                println("MASTER",(PlayerList,myPlayer,shufflePlayer))
-            end
-           if shufflePlayer != myPlayer && PlayerList[shufflePlayer] == plSocket
-                dArray = nwAPI.nw_receiveFromPlayer(shufflePlayer, nwPlayer[shufflePlayer],112)
-                if okToPrint(0x1)
-                    println("\nold Deck",deck)
-                end
-                deck = []
-                deck = TuSacCards.newDeckUsingArray(dArray)
-           else
-                dArray = TuSacCards.toValueArray(deck)
-                deck = []
-                deck = TuSacCards.newDeckUsingArray(dArray)
-
-           end
-           if okToPrint(0x1)
-                println("\nNew Deck=",deck)
-           end
-            for i in 1:4
-                    if PlayerList[i] == plSocket
-                        if i != shufflePlayer
-                            a = nwAPI.nw_receiveFromPlayer(i, nwPlayer[i],112)
-                        end
-                        nwAPI.nw_sendToPlayer(i,nwPlayer[i],dArray)
-                    end
-            end
-    elseif mode == m_client
-        if okToPrint(0x1)
-            println("PLAYER",(PlayerList,myPlayer))
-        end
-        if PlayerList[myPlayer] == plSocket
-            dArray = TuSacCards.toValueArray(deck)
-            nwAPI.nw_sendToMaster(myPlayer, nwMaster,dArray)
-            dArray =[]
-            dArray = nwAPI.nw_receiveFromMaster(nwMaster,112)
-            deck = []
-            deck = TuSacCards.newDeckUsingArray(dArray)
-        end
-    end
-return(deck)
-end
-global nwPlayer = Vector{Any}(undef,4)
-
-
-function serverNWSetup(serverIP,serverPort)
-     myS = nwAPI.serverSetup(serverIP,serverPort)
-     return myS
-end
-
-nwPlayerCnt = 0
-clientList = []
-
-function acceptPlayer(nw)
-    println("testing")
-    while(true)
-        global np = nwAPI.acceptClient(nw)
-        nwPlayerCnt += 1
-        clientList[nwPlayerCnt] = np
-        println("Client accepted:",nwPlayerCnt)
-    end
-end
-
-function networkInit()
-    global GUIname, connectedPlayer,nameSynced, serverSetup, nwMaster, nwPlayer,mode
-    addingPlayer = false
-    if mode == m_server
-        println("SERVER, expecting ", numberOfSocketPlayer - connectedPlayer, " players.")
-        if serverSetup == false
-            global myS = nwAPI.serverSetup(serverIP,serverPort)
-            serverSetup = true
-        else
-            addingPlayer = true
-        end
-        newPlayer = 0
-        while connectedPlayer < numberOfSocketPlayer
-            global p = nwAPI.acceptClient(myS)
-            while true
-                global i = rand(2:4)
-                if PlayerList[i] != plSocket
-                    break
-                end
-            end
-            PlayerList[i] = plSocket
-            nwPlayer[i] = p
-            nwAPI.nw_sendToPlayer(i,p,i)
-            msg = nwAPI.nw_receiveTextFromPlayer(i,nwPlayer[i])
-            print("Accepting Player ",i, " Name=",msg)
-            playerRootName[i] = msg
-            playerName[i] = msg
-            newPlayer = i
-            connectedPlayer += 1
-            nameSynced = false
-        end
-        so = connectedPlayer
-        updated = false
-
-        for s in 1:4
-            if !(addingPlayer && s != newPlayer)
-                if PlayerList[s] == plSocket
-                    nwAPI.nw_sendToPlayer(s,nwPlayer[s],numberOfSocketPlayer)
-                    nwAPI.nw_sendTextToPlayer(s,nwPlayer[s],version)
-                    pversion = nwAPI.nw_receiveTextFromPlayer(s,nwPlayer[s])
-                    println("Player ",playerName[s]," has version ",pversion)
-                    if version > pversion
-                        print("Sending updates to Player ", playerName[s])
-                        updated = true
-                        rf = open("tsGUI.jl","r")
-                        while !eof(rf)
-                            aline = readline(rf)
-                            nwAPI.nw_sendTextToPlayer(s,nwPlayer[s],aline)
-                        end
-                        nwAPI.nw_sendTextToPlayer(s,nwPlayer[s],"#=Binh-end=#")
-                        close(rf)
-                        println(" ... done")
-                    elseif pversion > version
-                        wf = open("tsGUI.jl","w")
-                        print("Receiving updates from Player ",playerName[s])
-                        while true
-                            aline = nwAPI.nw_receiveTextFromPlayer(s,nwPlayer[s])
-                            if aline == "#=Binh-end=#"
-                                break
-                            end
-                            println(wf,aline)
-                        end
-                        close(wf)
-                        println(" ... done")
-                        exit()
-                    end
-                    if so == 1
-                        break
-                    else
-                        so -= 1
-                    end
-                end
-            end
-        end
-        if updated
-            println("WHAT??")
-            exit()
-        end
-    elseif mode == m_client
-        println("CLIENT")
-        global nwMaster = nwAPI.clientSetup(serverURL,serverPort)
-        if nwMaster == 0
-            mode = m_standalone
-            return
-        end
-        msg = nwAPI.nw_receiveFromMaster(nwMaster,8)
-        println(msg)
-        global myPlayer = msg[2]
-        PlayerList[myPlayer] = plSocket
-        if GUI
-            noGUI_list[myPlayer] = false
-        end
-        println("Accepted as Player number ",myPlayer)
-        playerRootName[myPlayer] = NAME
-        playerName[myPlayer] = NAME
-        nwAPI.nw_sendTextToMaster(myPlayer,nwMaster,playerName[myPlayer])
-        println("Player List:",playerName)
-        msg = nwAPI.nw_receiveFromMaster(nwMaster,8)
-        global numberOfSocketPlayer = msg[2]
-        println("numberOfSocketPlayer", numberOfSocketPlayer)
-        sversion = nwAPI.nw_receiveTextFromMaster(nwMaster)
-        nwAPI.nw_sendTextToMaster(myPlayer,nwMaster,version)
-        println("Server has version ",sversion)
-        if sversion > version
-            print("Receiving updates from Server ... ")
-            wf = open("tsGUI.jl","w")
-            while true
-                aline = nwAPI.nw_receiveTextFromMaster(nwMaster)
-                if aline == "#=Binh-end=#"
-                    break
-                end
-                println(wf,aline)
-            end
-            close(wf)
-            println(" done")
-            exit()
-        elseif sversion < version
-            print("Sending updates to Server ")
-            rf = open("tsGUI.jl","r")
-            while !eof(rf)
-                aline = readline(rf)
-                nwAPI.nw_sendTextToMaster(myPlayer,nwMaster,aline)
-            end
-            nwAPI.nw_sendTextToMaster(myPlayer,nwMaster,"#=Binh-end=#")
-            close(rf)
-            println(" ... done")
-            exit()
-        end
-    end
-end
-
-
-"""
-    socketSYNC()
-        sync point for all socket players, ... global command can be
-            inserted here.
-TBW
-"""
-function socketSYNC()
-    global nameSynced,mode_human,PlayerList,
-    playerName,connectedPlayer,nwMaster, wantFaceDown
-
-    if numberOfSocketPlayer == 0
-        if haBai
-            println("Ha-bai")
-            gameOver(prevWinner)
-        elseif nameSynced == false
-            println("Doing name sync, new name = ", playerName[myPlayer])
-            if length(playerName[myPlayer]) > 2 && SubString(playerName[myPlayer],1,3) == "Bot"
-                mode_human = false
-                PlayerList[myPlayer] = plBot1
-
-            else
-                mode_human = true
-                PlayerList[myPlayer] = plHuman
-
-            end
-            nameSynced = true
-        end
-    else
-        if (PlayerList[myPlayer] != plSocket) && isServer()
-            msg = Vector{String}(undef,4)
-            for p in 1:4
-                if PlayerList[p] == plSocket
-                    msg[p] = nwAPI.nw_receiveTextFromPlayer(p, nwPlayer[p])
-                end
-            end
-            gmsg ="."
-            for p in 1:4
-                if PlayerList[p] == plSocket
-                    if msg[p] !="."
-                        gmsg = msg[p]
-                    end
-                end
-            end
-            println(gmsg)
-            needFDsync = !wantFaceDown  && !faceDownSync
-            smsg = haBai ? "H" : !nameSynced ? "N" : needFDsync ? "F" : gmsg
-
-            for p in 1:4
-                if PlayerList[p] == plSocket
-                    println("S-sending ", smsg)
-                    nwAPI.nw_sendTextToPlayer(p, nwPlayer[p],smsg)
-                end
-            end
-            if smsg == "H"
-                gameOver(prevWinner)
-            elseif smsg == "F"
-                wantFaceDown = false
-            elseif smsg == "N"
-                glbNameSync(myPlayer)
-                if length(playerName[myPlayer]) > 2 &&  SubString(playerName[myPlayer],1,3)  == "Bot"
-                    mode_human = false
-                else
-                    mode_human = true
-                end
-                for p in 1:4
-                    if PlayerList[p] == plSocket
-                        println((p,playerName[p]))
-                        if length(playerName[p]) > 3 && SubString(playerName[p],1,4) == "QBot"
-                            connectedPlayer -= 1
-                            PlayerList[p] = plBot1
-                        end
-                    end
-                end
-                nameSynced = true
-            end
-        elseif PlayerList[myPlayer] == plSocket
-            needFDsync = !wantFaceDown  && !faceDownSync
-            smsg = haBai ? "H" : !nameSynced ? "N" : needFDsync ? "F" : "."
-
-            println("c-sending ", smsg)
-            nwAPI.nw_sendTextToMaster(myPlayer, nwMaster,smsg)
-            myMsg = nwAPI.nw_receiveTextFromMaster(nwMaster)
-            println("receiving ",myMsg)
-            if myMsg == "H"
-                gameOver(prevWinner)
-            elseif smsg == "F"
-                wantFaceDown = false
-            elseif myMsg == "N"
-                glbNameSync(myPlayer)
-                if  length(playerName[myPlayer]) > 2 && SubString(playerName[myPlayer],1,3) == "Bot"
-                    mode_human = false
-                elseif length(playerName[myPlayer]) > 2 &&  SubString(playerName[myPlayer],1,3)  == "QBo"
-                    exit()
-                else
-                    mode_human = true
-                end
-                nameSynced = true
-            end
-            println(myMsg)
-        end
-    end
-end
-
 function tusacDeal(winner)
     global playerA_hand,playerB_hand,playerC_hand,playerD_hand,moveArray
     global playerA_discards,playerB_discards,playerC_discards,playerD_discards
@@ -4326,7 +3868,7 @@ end
 
 function sendToSocket(player,activePlayer,activeCard, aiCMD,wsCMD)
     global writeData
-    println("Player $player sendCMD ($player): ",ts(activeCard),wsCMD,ts(aiCMD))
+    okToPrint(0x80) && println("Player $player sendCMD ($player): ",ts(activeCard),wsCMD,ts(aiCMD))
     astr = string(activePlayer,",",ts(activeCard),",",wsCMD,",",ts(aiCMD),",")
    
     checkWrite(player,astr)
@@ -4352,11 +3894,34 @@ function waitForSocket(player,aiCMD,wsCMD)
         end
     end
     
-    println(ts(cards))
+    okToPrint(0x80) &&  println(ts(cards))
     return cards
 end
 
-server = listen(8080)
+function serverSetup(serverIP,port)
+    println("Server-setup ",(serverIP,port))
+    nw = 0
+    try
+        nw = listen(serverIP,port)
+        return nw
+    catch
+        @warn "Port is busy"
+    end
+end
+    
+
+function acceptClient(s)
+    return(accept(s))
+end
+
+serverURL = "baobinh.tplinkdns.com"
+#port = 11031
+#myIP = ip"192.168.0.65"
+
+port = 11029
+myIP = ip"192.168.0.53"
+
+server = serverSetup(serverIP,serverPort)
 const PTsocket = 1
 const PTai = 0
 playersType = [PTai,PTai,PTai,PTai]
@@ -4391,7 +3956,7 @@ function prompt()
     global promptData
     if promptData != "S"
         flush(stdout)
-        print("Hit ENTER to continue, S to skip")
+        print("Hit ENTER to continue, A to  auto-skip")
         promptData = readline()
     end
 end
@@ -4508,7 +4073,7 @@ function doMain()
             TuSacManager.print_mvArray()
             for i in 1:4
                 if playersType[i] == PTsocket
-                    println("Sending To socket ",i) 
+                    okToPrint(0x80) && println("Sending To socket ",i) 
                     checkWrite(i,TuSacManager.string_mvArray())
                 end
                 if playersTypeDelay[i] > PTai
@@ -4570,7 +4135,7 @@ function networkLoop(myId,myConn)
         line = writeData[myId]
         try
             println(myConn,line)
-            println("Socket $myId send ",line)
+            okToPrint(0x80) && println("Socket $myId send ",line)
 
         catch e
             cleanup(myId)
@@ -4584,10 +4149,10 @@ function networkLoop(myId,myConn)
                 return
             elseif line == "+"
                 #nothing ... chew this
-                println("Socket $myId Ack \"+\" ")
+                okToPrint(0x80) && println("Socket $myId Ack \"+\" ")
             else
                 readData[myId] = line
-                println("Socket $myId Reply \"$line\" ")
+                okToPrint(0x80) && println("Socket $myId Reply \"$line\" ")
             end
             writeData[myId] = ""
 

@@ -4258,6 +4258,16 @@ getData_all_discard_assets()
 """
 
 
+function clientSetup(serverURL,port)
+    println((serverURL,port))
+    try
+        ac = connect(serverURL,port)
+        return ac
+    catch
+        return 0
+    end
+end
+
 function getTable()
     println(nwMaster,"getTable")
     for i in 1:4
@@ -4265,17 +4275,23 @@ function getTable()
         pHand[1] = textToCards(aline)
     end
 end
-global nwMaster = nwAPI.clientSetup(serverURL,serverPort)
-
+println(serverURL,serverPort)
+global nwMaster = clientSetup(serverURL,serverPort)
+if nwMaster == 0
+    println("Failed to connect")
+    exit()
+end
 TuSacManager.readRFtable(nwMaster)
 TuSacManager.printTable()
 coinsStr  = readline(nwMaster)
 println("Coins=",coinsStr)
+areply = ""
 while true
     cmd = readline(nwMaster)
     println("Receive cmd = ",cmd)
-    reply = readline()
-    reply = reply == "" ? "=" : reply
+    
+    areply = areply == "A" ? areply : readline()
+    reply = areply == "A" ? "=" : areply
     println("Sending:",reply,".")
     println(nwMaster,reply)
    
