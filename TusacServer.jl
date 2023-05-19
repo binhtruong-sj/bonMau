@@ -4555,7 +4555,7 @@ function cleanup(myID)
     global writeData[myID] = ""
     
     global playersTypeLive[myID] = PTai
-    global playersTypeDelay[myID] = PTsocket 
+    global playersTypeDelay[myID] = PTsocket + PTsocket
     global playersType[myID] = PTai
     println("Player $myId disconnected")
     return
