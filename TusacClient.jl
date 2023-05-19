@@ -3246,14 +3246,12 @@ function config(fn)
                     playerName = setPlayerName(playerRootName,aiTrait)
                     boDoiFlag = (aiTrait .& 0x1 ) .!= 0
                     mydefensiveFlag = defensiveFlag .&& ((aiTrait .& 0x2) .!= 0)
-                
-            elseif lcCmp(keyword,"server")
+            elseif lcCmp(keyword,"serverURL")
                 serverURL = string(rl[2])
-                serverPort = parse(Int,rl[3])
-            elseif lcCmp(keyword,"myIP")
+            elseif lcCmp(keyword,"serverIP")
                 serverIP = getaddrinfo(string(rl[2]))
-                if okToPrint(0x1)
-                println(serverIP)
+                serverPort = parse(Int,rl[3])
+       
                 end
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
@@ -4240,30 +4238,14 @@ prevWinner = 1
 tusacDeal(prevWinner)
 TuSacManager.init()
 
-"""
-TuSacManager.doShuffle(10)
-TuSacManager.dealCards(prevWinner)
-
-all = TuSacManager.getTable()
-pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
-global playerA_hand = pHand[1]
-global playerB_hand = pHand[2]
-global playerC_hand = pHand[3]
-global playerD_hand = pHand[4]
-gameDeck = pGameDeck
-getData_all_hands()
-
-getData_all_discard_assets()
-#TuSacManager.printTable()
-"""
-
-
 function clientSetup(serverURL,port)
     println((serverURL,port))
     try
         ac = connect(serverURL,port)
         return ac
     catch
+        println("Failed to connect")
+        exit()
         return 0
     end
 end
@@ -4275,12 +4257,8 @@ function getTable()
         pHand[1] = textToCards(aline)
     end
 end
-println(serverURL,serverPort)
 global nwMaster = clientSetup(serverURL,serverPort)
-if nwMaster == 0
-    println("Failed to connect")
-    exit()
-end
+
 TuSacManager.readRFtable(nwMaster)
 TuSacManager.printTable()
 coinsStr  = readline(nwMaster)

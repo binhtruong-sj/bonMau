@@ -3116,13 +3116,11 @@ function config(fn)
                     boDoiFlag = (aiTrait .& 0x1 ) .!= 0
                     mydefensiveFlag = defensiveFlag .& ((aiTrait .& 0x2) .!= 0)
                 
-            elseif lcCmp(keyword,"server")
+            elseif lcCmp(keyword,"serverURL")
                 serverURL = string(rl[2])
-                serverPort = parse(Int,rl[3])
-            elseif lcCmp(keyword,"myIP")
+            elseif lcCmp(keyword,"serverIP")
                 serverIP = getaddrinfo(string(rl[2]))
-                println("serverIP ",serverIP)
-               
+                serverPort = parse(Int,rl[3])
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
             elseif lcCmp(keyword,"generic")
@@ -3913,15 +3911,8 @@ end
 function acceptClient(s)
     return(accept(s))
 end
-
-serverURL = "baobinh.tplinkdns.com"
-#port = 11031
-#myIP = ip"192.168.0.65"
-
-port = 11029
-myIP = ip"192.168.0.53"
-
 server = serverSetup(serverIP,serverPort)
+
 const PTsocket = 1
 const PTai = 0
 playersType = [PTai,PTai,PTai,PTai]
