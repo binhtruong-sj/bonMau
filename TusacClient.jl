@@ -4327,6 +4327,7 @@ global nwMaster = clientSetup(serverURL,serverPort)
 gameOn = true
 
 while gameOn
+    global areply
     println("New Game")
     TuSacManager.init()
     TuSacManager.readRFtable(nwMaster)
