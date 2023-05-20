@@ -1074,6 +1074,21 @@ module TuSacManager
             end
         end
     end
+    function TableToString()
+        # checksum()
+        astr = ""
+            for (i,ah) in enumerate(vPlayerHand)
+                astr = astr * ts(ah) * "\n"
+            end
+            for (i,ah) in enumerate(vPlayerDiscard)
+                astr = astr * ts(ah) * "\n"
+            end
+            for (i,ah) in enumerate(vPlayerAsset)
+                astr = astr * ts(ah) * "\n"
+            end
+            astr = astr * ts(vGameDeck)
+            return astr
+    end
     function printTable(WF)
         # checksum()
             for (i,ah) in enumerate(vPlayerHand)
@@ -1097,7 +1112,15 @@ module TuSacManager
         end
         println(WF)
     end
-
+    function CoinsToString()
+        astr = ""
+        for p in 1:4
+            for c in coinsArr[p]
+                astr = astr * string(", ",c)
+            end
+        end
+        return astr
+    end
     function updateDeadCard(player,card)
         push!(deadCards[player],card)
     end
@@ -1144,7 +1167,6 @@ module TuSacManager
         the regular pairs check
     """
     function c_analyzer(ap,as,ci)
-        println("c_analyzer ", ((tss(ap)),(ts(as)),ts(ci)))
         p = deepcopy(ap)
         s = deepcopy(as)
         #println("c_analyzer= ",(p,s,ci))
@@ -1479,18 +1501,36 @@ module TuSacManager
     function getDeckCard()
         return vGameDeck[end]
     end
-    function print_mvArray()
+    function print_mvArray(gameOver)
         print("Move Array: ")
+        print(gameOver ? "gameOver," : "cont,")
         for ar in TuSacManager.mvArray
-            print(ar[1]," ",ar[2]," ",ts(ar[3])," ")
+            print(ar[1]," ",ar[2]," ",ts(ar[3]),",")
         end
         println()
     end
 
-    function string_mvArray()
-        astr = ""
-        for ar in TuSacManager.mvArray
-            astr = astr*string(ar[1]," ",ar[2]," ",ts(ar[3])," ")
+    function string_TArray(gameOver)
+        global mvArray
+        tArray = []
+        for i in 1:lastindex(mvArray)
+            if mvArray[i][1] == 1
+                for j in i + 1 : lastindex(mvArray)
+                    if mvArray[j][1] == 0
+                        if mvArray[i][3] == mvArray[j][3]
+                            entry = mvArray[i][2],mvArray[j][2],mvArray[j][3]
+                            push!(tArray,entry)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    
+        astr = gameOver ? "gameOver," : "cont,"
+
+        for ar in tArray
+            astr = astr*string(ar[1]," ",ar[2]," ",ts(ar[3]),",")
         end
         return astr
     end
@@ -1509,6 +1549,7 @@ module TuSacManager
             nc = pop!(mGameDeck, 1)
             nca = pop!(vGameDeck)
             push!(mvArray,(1,0,nca))
+
             return nca
         else
             for c in cards
@@ -1659,7 +1700,14 @@ module TuSacManager
         getAllPlayerCards()
 
     end
-  
+    gameReady = false
+    function resetReady() 
+        global gameReady = false
+    end
+    function setReady()
+        global gameReady = true
+    end
+
     function setupHand()
         for i in 1:4
             allPairs = scanCards(vPlayerHand[i],false)
@@ -3859,7 +3907,8 @@ prevPlayer(p) = p == 1 ? 4 : p - 1
 function checkWrite(i,str)
     global writeData
     while writeData[i] != ""
-        sleep(.2)
+        okToPrint(0x80)  &&  println("Wait for WritData to be empty, WriteData= ",writeData[i]," ready =",TuSacManager.gameReady)
+        sleep(.3)
     end
     writeData[i] = str
 end
@@ -3876,7 +3925,7 @@ function waitForSocket(player,aiCMD,wsCMD)
     global writeData, readData
     
     while(length(readData[player]) == 0)
-        sleep(1)
+        sleep(.1)
     end
     line = readData[player]
     readData[player] = ""
@@ -3941,21 +3990,36 @@ gameOver = false
 writeData = ["","","",""]
 readData = ["","","",""]
 promptData = ""
+loopCnt = [0,0,0,0]
+promptCnt = 0
 tusacDeal(prevWinner)
 global playersSocket = Vector{Any}(undef,4)
 function prompt()
-    global promptData
-    if promptData != "S"
-        flush(stdout)
-        print("Hit ENTER to continue, A to  auto-skip")
-        promptData = readline()
+    global promptData,promptCnt
+    if playersType == [0,0,0,0] && promptData == "C"
+        promptData = ""
     end
-end
 
+    if promptData != "A" && promptData != "P" && promptData != "C"
+        flush(stdout)
+        print("Hit ENTER to continue, \"A/P/C\" for auto-skip :")
+        promptData = readline()
+        promptCnt = 0
+    else
+        promptCnt += 1
+        if promptCnt > 10 && promptData == "A"
+            promptData = ""
+        end
+    end
+  
+end
 function doMain()
     while true
+
         global gameOver,pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck,socketCMD,
         atPlayer, playaCard, prevWinner, playersType, playersTypeLive
+        gameReady = false
+
         TuSacManager.init()
         TuSacManager.doShuffle(10)
         TuSacManager.dealCards(prevWinner)
@@ -3974,12 +4038,12 @@ function doMain()
     # TuSacManager.printTable()
         TuSacManager.initialScan(all_hands)
         printAllInfo()
+        TuSacManager.setReady()
 
         atPlayer = prevWinner
         playaCard = true
         gameOver = false
         nPlayer = [0,0,0,0]
-
         while !gameOver
             global gameOver, playersReply
             prompt()
@@ -4039,9 +4103,9 @@ function doMain()
                 atPlayer = nPlayer[2]
                 playaCard = false
             else
+                TuSacManager.removeCards!(false,nP,nr)
                 TuSacManager.addCards!(false,nP,activeCard)
                 TuSacManager.addCards!(false,nP,nr)
-                TuSacManager.removeCards!(false,nP,nr)
                 atPlayer = nP
                 playaCard = true
             end
@@ -4054,6 +4118,9 @@ function doMain()
             println(playersType,playersTypeLive)
             TuSacManager.printTable()
             gameOver = nWin == 0xFE
+            if gameOver
+                TuSacManager.resetReady()
+            end
             if gameOver 
                 prevWinner = nP
             end
@@ -4061,11 +4128,12 @@ function doMain()
                 gameOver = true
             end
 
-            TuSacManager.print_mvArray()
+            TuSacManager.print_mvArray(gameOver)
+            println(TuSacManager.string_TArray(gameOver))
             for i in 1:4
                 if playersType[i] == PTsocket
                     okToPrint(0x80) && println("Sending To socket ",i) 
-                    checkWrite(i,TuSacManager.string_mvArray())
+                    checkWrite(i,TuSacManager.string_TArray(gameOver))
                 end
                 if playersTypeDelay[i] > PTai
                     playersTypeDelay[i] -= 1
@@ -4077,7 +4145,6 @@ function doMain()
         #readline()
     end
 end
-
 function doNW()
     while true
         global i
@@ -4090,15 +4157,15 @@ function doNW()
             end
         end
         if i != 0
+             
             conn = accept(server)
             println("Accepted: ",i)
             clientId = i
-            writeData[i] = ""
             readData[i] = ""
-            playersTypeLive[clientId] = PTsocket
-            playersSocket[clientId] = conn
-            TuSacManager.printTable(conn)
-            TuSacManager.printCoins(conn)
+            playersSocket[i] = conn
+            playersTypeLive[i] = PTsocket
+            loopCnt[i] = 0
+
             @spawn networkLoop(clientId,conn)
         else
             sleep(4)
@@ -4113,44 +4180,65 @@ function cleanup(myID)
     global playersTypeLive[myID] = PTai
     global playersTypeDelay[myID] = PTsocket + PTsocket
     global playersType[myID] = PTai
-    println("Player $myId disconnected")
+    println("Player $myID disconnected")
     return
 end
 
 function networkLoop(myId,myConn)
     while true
-        global writeData, readData, readyToRead, playersTypeLive,playersType
-        while length(writeData[myId]) == 0 
-            sleep(.2)
+        global loopCnt
+        gameOver = false
+        writeData[myId] = "1"
+        while TuSacManager.gameReady == false
+            println("Waiting for Ready")
+            sleep(.1)
         end
-        line = writeData[myId]
         try
-            println(myConn,line)
-            okToPrint(0x80) && println("Socket $myId send ",line)
-
-        catch e
-            cleanup(myId)
+            TuSacManager.printTable(myConn)
+            TuSacManager.printCoins(myConn)
+        catch
             return
         end
+        writeData[myId] = ""
+        while !gameOver
+            global writeData, readData, readyToRead, playersTypeLive,playersType,loopCnt
+            while length(writeData[myId]) == 0 
+                sleep(.2)
+            end
+            loopCnt[myId] += 1
 
-        try
-            line =  readline(myConn)
-            if line == ""
+            line = writeData[myId]
+            gameOver = line[1] == 'g'
+            try
+                println(myConn,line)
+            catch 
                 cleanup(myId)
                 return
-            elseif line == "+"
-                #nothing ... chew this
-                okToPrint(0x80) && println("Socket $myId Ack \"+\" ")
-            else
-                readData[myId] = line
-                okToPrint(0x80) && println("Socket $myId Reply \"$line\" ")
             end
-            writeData[myId] = ""
+            okToPrint(0x80) && println("Socket $myId send ",line)
 
-        catch e
-            cleanup(myId)
-            return
+            try
+                line =  readline(myConn)
+                if line == ""
+                    cleanup(myId)
+                    return
+                elseif line == "+"
+                    #nothing ... chew this
+                    okToPrint(0x80) && println("Socket $myId Ack \"+\" ")
+                else
+                    readData[myId] = line
+                    okToPrint(0x80) && println("Socket $myId Reply \"$line\" ")
+                end
+                writeData[myId] = ""
+
+            catch e
+                cleanup(myId)
+                return
+            end
+          
         end
+     
+
     end
 end
 

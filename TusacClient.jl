@@ -687,11 +687,11 @@ module TuSacCards
         gcolor = "TVDX"
         (UInt8(find1(s[1], grank)) << 2) | (UInt8(find1(s[2], gcolor) - 1) << 5)
     end
-    function removeCards!(hand::Deck, aline::String)
+    
+    function removeCards!(hand, aline)
         grank = "Tstcxpm"
         gcolor = "TVDX"
         tohand = []
-
         aStrToVal(s) =
         (UInt8(find1(s[1], grank)) << 2) | (UInt8(find1(s[2], gcolor) - 1) << 5)
         str = split(aline, ' ')
@@ -712,6 +712,24 @@ module TuSacCards
         return tohand
     end
 
+    function removeACard!(hand, s)
+        grank = "Tstcxpm"
+        gcolor = "TVDX"
+        tohand = []
+
+        aStrToVal(s) =
+        (UInt8(find1(s[1], grank)) << 2) | (UInt8(find1(s[2], gcolor) - 1) << 5)
+        v = aStrToVal(s)
+        for (i,c) in enumerate(hand)
+            if card_equal(c.value, v)
+                pop!(hand,c)
+                return c
+                break
+            end
+        end
+        return 0
+    end
+    
     """
         ordered_deck
     An ordered `Deck` of cards.
@@ -1710,6 +1728,42 @@ module TuSacManager
             else
                 push!(playerDiscard[n],ts(c))
             end
+        end
+    end
+
+    """
+    moveCard!( nf,nt, c)
+
+    nf: 0 is from Deck, 1-4 from hand.
+    nt: 1-4: assets, 5-8: discards
+    c: a card in alphabet (if from deck ... not used)
+    """
+    function moveCard!( fromIndex,toIndex,crd)
+        global playerHand,vPlayerHand,
+        mGameDeck,vGameDeck,
+        vPlayerAsset,playerAsset,
+        vPlayerDiscard,playerDiscard
+
+        if fromIndex == 0
+            c = pop!(mGameDeck, 1)
+            nc = pop!(vGameDeck)
+        else
+            acard = TuSacCards.removeACard!(playerHand[fromIndex],crd)
+            for l = 1:lastindex(vPlayerHand[fromIndex])
+                if acard.value == vPlayerHand[fromIndex][l]
+                    splice!(vPlayerHand[fromIndex], l)
+                    break
+                end
+            end
+            nc = acard.value
+            c = crd
+        end
+        if toIndex < 5
+            push!(vPlayerAsset[toIndex], nc)
+            push!(playerAsset[toIndex],c)
+        else
+            push!(vPlayerDiscard[toIndex-4], nc)
+            push!(playerDiscard[toIndex-4],c)
         end
     end
 
@@ -3251,8 +3305,6 @@ function config(fn)
             elseif lcCmp(keyword,"serverIP")
                 serverIP = getaddrinfo(string(rl[2]))
                 serverPort = parse(Int,rl[3])
-       
-                end
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
             elseif lcCmp(keyword,"generic")
@@ -4236,7 +4288,6 @@ gameDeckArray =[]
 prevWinner = 1
         
 tusacDeal(prevWinner)
-TuSacManager.init()
 
 function clientSetup(serverURL,port)
     println((serverURL,port))
@@ -4257,28 +4308,50 @@ function getTable()
         pHand[1] = textToCards(aline)
     end
 end
-global nwMaster = clientSetup(serverURL,serverPort)
-
-TuSacManager.readRFtable(nwMaster)
-TuSacManager.printTable()
-coinsStr  = readline(nwMaster)
-println("Coins=",coinsStr)
 areply = ""
-while true
-    cmd = readline(nwMaster)
-    println("Receive cmd = ",cmd)
+function readl()
+    rl = readline()
+    rl = rl == "" ? "=" : rl
+    return rl
+end
+function getReply()
+    global areply
+    areply = (areply == "A" || areply == "P") ? areply : readl()
+    reply = (areply == "A" || areply == "P") ? "=" : areply
     
-    areply = areply == "A" ? areply : readline()
-    reply = areply == "A" ? "=" : areply
     println("Sending:",reply,".")
-    println(nwMaster,reply)
-   
-    if reply == ""
-        exit()
+    return reply
+end
+
+global nwMaster = clientSetup(serverURL,serverPort)
+gameOn = true
+
+while gameOn
+    println("New Game")
+    TuSacManager.init()
+    TuSacManager.readRFtable(nwMaster)
+    TuSacManager.printTable()
+    coinsStr  = readline(nwMaster)
+    println("Coins=",coinsStr)
+
+    gameOver = false
+    areply = areply == "A" ? "" : areply
+    while !gameOver
+        global areply
+        cmd = readline(nwMaster)
+        println("Receive cmd = ",cmd)
+        reply = getReply()
+        println(nwMaster,reply)
+    
+        moveStr = readline(nwMaster)
+        gameOver = moveStr[1] == 'g'
+        println(nwMaster,"+")
+        println("mv array ",moveStr)
+        mvArr = split(moveStr,",")
+        for i in 2:lastindex(mvArr) -1
+            f = split(mvArr[i]," ")
+            TuSacManager.moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
+        end
+        TuSacManager.printTable()
     end
-
-
-    moveStr = readline(nwMaster)
-    println(nwMaster,"+")
-    println("mv array",moveStr)
 end
