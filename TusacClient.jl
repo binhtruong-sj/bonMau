@@ -4305,10 +4305,10 @@ function getTable()
     println(nwMaster,"getTable")
     for i in 1:4
         aline = readline(nwMaster)
-        pHand[1] = textToCards(aline)
+        pHand[i] = textToCards(aline)
     end
 end
-areply = ""
+areply = "P"
 function readl()
     rl = readline()
     rl = rl == "" ? "=" : rl
@@ -4324,35 +4324,52 @@ function getReply()
 end
 
 global nwMaster = clientSetup(serverURL,serverPort)
+playerNum =readline(nwMaster)
+playerName = string("Player",playerNum)
+println(nwMaster,playerName)
 gameOn = true
 
-while gameOn
-    global areply
-    println("New Game")
-    TuSacManager.init()
-    TuSacManager.readRFtable(nwMaster)
-    TuSacManager.printTable()
-    coinsStr  = readline(nwMaster)
-    println("Coins=",coinsStr)
+function loopExit()
+    n = rand(10:90)
+    sleep(n)
+    println(playerName," QUIT")
+    exit()
+end
 
-    gameOver = false
-    areply = areply == "A" ? "" : areply
-    while !gameOver
+function doMain()
+    while gameOn
         global areply
-        cmd = readline(nwMaster)
-        println("Receive cmd = ",cmd)
-        reply = getReply()
-        println(nwMaster,reply)
-    
-        moveStr = readline(nwMaster)
-        gameOver = moveStr[1] == 'g'
-        println(nwMaster,"+")
-        println("mv array ",moveStr)
-        mvArr = split(moveStr,",")
-        for i in 2:lastindex(mvArr) -1
-            f = split(mvArr[i]," ")
-            TuSacManager.moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
-        end
+        println("New Game")
+        TuSacManager.init()
+        TuSacManager.readRFtable(nwMaster)
+        println(playerName)
         TuSacManager.printTable()
+        coinsStr  = readline(nwMaster)
+        println("Coins=",coinsStr)
+
+        gameOver = false
+        areply = areply == "A" ? "" : areply
+        while !gameOver
+            global areply
+            cmd = readline(nwMaster)
+            println("Receive cmd = ",cmd)
+            reply = getReply()
+            println(nwMaster,reply)
+        
+            moveStr = readline(nwMaster)
+            gameOver = moveStr[1] == 'g'
+            println(nwMaster,"+")
+            println("mv array ",moveStr)
+            mvArr = split(moveStr,",")
+            for i in 2:lastindex(mvArr) -1
+                f = split(mvArr[i]," ")
+                TuSacManager.moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
+            end
+            println(playerName)
+            TuSacManager.printTable()
+        end
+        println(nwMaster,"Restart")
     end
 end
+doMain()
+

@@ -550,6 +550,27 @@ module TuSacCards
         end
         return 0
     end
+
+    function cardStrToVal(s,deck,ignore)
+        grank = "Tstcxpm"
+        gcolor = "TVDX"
+        card = (UInt8(find1(s[1], grank)) << 2) | (UInt8(find1(s[2], gcolor) - 1) << 5)
+        for c in deck
+            if card_equal(c,card)
+                found = false
+                for i in ignore
+                    if i == c
+                        found = true
+                        break
+                    end
+                end 
+                if !found
+                    return c
+                end                       
+            end
+        end
+        return 0
+    end
     function removeCards!(hand::Deck, aline::String)
         grank = "Tstcxpm"
         gcolor = "TVDX"
@@ -1089,38 +1110,79 @@ module TuSacManager
             astr = astr * ts(vGameDeck)
             return astr
     end
-    function printTable(WF)
+
+    function printTable(WF,player)
         # checksum()
-            for (i,ah) in enumerate(vPlayerHand)
+            for i in player:4
+                ah = vPlayerHand[i]
                 println(WF,ts(ah))
             end
-            for (i,ah) in enumerate(vPlayerDiscard)
+            if player > 1
+                for i in 1:player-1
+                    ah = vPlayerHand[i]
+                    println(WF,ts(ah))
+                end
+            end
+
+            for i in player:4
+                ah = vPlayerDiscard[i]
                 println(WF,ts(ah))
             end
-            for (i,ah) in enumerate(vPlayerAsset)
+            if player > 1
+                for i in 1:player-1
+                    ah = vPlayerDiscard[i]
+                    println(WF,ts(ah))
+                end
+            end
+
+            for i in player:4
+                ah = vPlayerAsset[i]
                 println(WF,ts(ah))
             end
+            if player > 1
+                for i in 1:player-1
+                    ah = vPlayerAsset[i]
+                    println(WF,ts(ah))
+                end
+            end
+
             println(WF,ts(vGameDeck))
          
     end
 
-    function printCoins(WF)
-        for p in 1:4
-            for c in coinsArr[p]
-                print(WF,", ",c)
+    function printCoins(WF,player)
+        for i in player:4
+            for c in coinsArr[i]
+                print(WF,",",c)
+            end
+        end
+        if player > 1
+            for i in 1:player-1
+                for c in coinsArr[i]
+                    print(WF,",",c)
+                end
             end
         end
         println(WF)
     end
-    function CoinsToString()
-        astr = ""
-        for p in 1:4
-            for c in coinsArr[p]
-                astr = astr * string(", ",c)
+
+
+    function printCoins(player)
+        for i in player:4
+            for c in coinsArr[i]
+                print(", ",c)
             end
         end
-        return astr
+        if player > 1
+            for i in 1:player-1
+                for c in coinsArr[i]
+                    print(", ",c)
+                end
+            end
+        end
+        println()
     end
+   
     function updateDeadCard(player,card)
         push!(deadCards[player],card)
     end
@@ -1509,8 +1571,40 @@ module TuSacManager
         end
         println()
     end
+    """
+     mapping a player number (realp) to a new number relative to the player 
+        P   no   R
+        1   n    n
+        2   2    1
+        2   3    2
+        2   4    3
+        2   1    4
 
-    function string_TArray(gameOver)
+        3   3    1
+        3   4    2
+        3   1    3
+        3   2    4
+
+        4   4    1
+        4   1    2
+        4   2    3
+        4   3    4
+    """
+    function mappingPlayer(player,relativeP)
+        if relativeP == 0
+            return 0
+        end
+        #discard vs asset 
+        m = relativeP > 4 ? relativeP-4 : relativeP
+       
+        r = m - (player-1)
+        r = r > 0 ? r : r+4
+        r = relativeP > 4 ? r+4 : r
+
+        return r
+    end
+
+    function string_TArray(gameOver,p,np)
         global mvArray
         tArray = []
         for i in 1:lastindex(mvArray)
@@ -1526,11 +1620,11 @@ module TuSacManager
                 end
             end
         end
-    
-        astr = gameOver ? "gameOver," : "cont,"
-
+        np = mappingPlayer(p,np)
+        astr = gameOver ? string("gameOver $np,") : string("cont $np,")
+      
         for ar in tArray
-            astr = astr*string(ar[1]," ",ar[2]," ",ts(ar[3]),",")
+            astr = astr*string(mappingPlayer(p,ar[1])," ",mappingPlayer(p,ar[2])," ",ts(ar[3]),",")
         end
         return astr
     end
@@ -3150,7 +3244,6 @@ function config(fn)
                 showLocation = true
             elseif lcCmp(keyword,"allowPrint")
                 stickyAllowPrint = allowPrint = parse(Int,rl[2])
-                nwAPI.allwPrint(allowPrint)
                 TuSacCards.allwPrint(allowPrint)
                 TuSacManager.allwPrint(allowPrint)
             elseif lcCmp(keyword,"aiTrait")
@@ -3563,6 +3656,38 @@ isTripple(r) = length(r) == 3 ? card_equal(r[1],r[2]) : false
 
 global currenAction
 
+"""
+     mapping a player number (realp) to a new number relative to the player 
+        P   no   R
+        1   n    n
+        2   2    1
+        2   3    2
+        2   4    3
+        2   1    4
+
+        3   3    1
+        3   4    2
+        3   1    3
+        3   2    4
+
+        4   4    1
+        4   1    2
+        4   2    3
+        4   3    4
+    """
+function mappingPlayer(player,relativeP)
+    if relativeP == 0
+        return 0
+    end
+    #discard vs asset 
+    m = relativeP > 4 ? relativeP-4 : relativeP
+   
+    r = m - (player-1)
+    r = r > 0 ? r : r+4
+    r = relativeP > 4 ? r+4 : r
+
+    return r
+end
 
 function printAllInfo()
     checksum()
@@ -3904,44 +4029,95 @@ end
 
 nextPlayer(p) = p == 4 ? 1 : p + 1
 prevPlayer(p) = p == 1 ? 4 : p - 1
+saveStr = ""
+writeCnt = [0,0,0,0]
 function checkWrite(i,str)
-    global writeData
-    while writeData[i] != ""
-        okToPrint(0x80)  &&  println("Wait for WritData to be empty, WriteData= ",writeData[i]," ready =",TuSacManager.gameReady)
+    global writeData,writeCnt
+    saveStr = ""
+    while writeData[i] != "" || writeCnt[i] > 0
+        astr = string("Wait for WritData $i to be empty, WriteData= ",writeData[i]," ready =",
+        TuSacManager.gameReady," writeCnt=",writeCnt[i])
+        filterprintln(astr,saveStr)
         sleep(.3)
     end
+    println("APL: send $i \"$str\"")
     writeData[i] = str
+    writeCnt[i] += 1
 end
 
-function sendToSocket(player,activePlayer,activeCard, aiCMD,wsCMD)
-    global writeData
-    okToPrint(0x80) && println("Player $player sendCMD ($player): ",ts(activeCard),wsCMD,ts(aiCMD))
-    astr = string(activePlayer,",",ts(activeCard),",",wsCMD,",",ts(aiCMD),",")
-   
+function filterprintln(str,saveStr)
+    global saveStr
+    if str != saveStr 
+        saveStr = str
+        println(str)
+    else
+        print(".")
+    end
+    return str
+end
+
+
+function sendToSocket(player,astr)
+    global writeData,writeCnt   
     checkWrite(player,astr)
 end
 
+function sendToSocket(player,activePlayer,playaCard,activeCard, aiCMD,wsCMD)
+    global writeData,writeCnt
+    astr = string(playaCard,",",activePlayer,",",ts(activeCard),",",wsCMD,",",ts(aiCMD),",")
+    checkWrite(player,astr)
+end
+
+function waitForSocket(player)
+    global writeData, readData,writeCnt,vHand
+    while(length(readData[player]) == 0)
+        okToPrint(0x80) && filterprintln("waiting for read data $player",saveStr)
+        sleep(.2)
+    end
+    if readData[player] == "+" || readData[player] == "="
+        println("APL: $player read \"+\"")
+        readData[player] = ""
+        writeCnt[player] -= 1
+    else
+        println("$player ERROR in getting ack, getting ",readData[player])
+        exit()
+    end
+    return 
+end
+
+function strToCards(hand, astr) 
+    fs = split(astr," ")
+    ignore = []
+    for f in fs
+        if f != ""
+            fv = TuSacCards.cardStrToVal(f,hand,ignore)
+            push!(ignore,fv)
+        end
+    end
+    return ignore
+end
 function waitForSocket(player,aiCMD,wsCMD)
-    global writeData, readData
+    global writeData, readData,writeCnt, vHand
     
     while(length(readData[player]) == 0)
-        sleep(.1)
+        okToPrint(0x80) && filterprintln("waiting for read data $player",saveStr)
+        sleep(.2)
     end
     line = readData[player]
     readData[player] = ""
+    writeCnt[player] -= 1
+
+    println("APL: $player read $line")
     if line == "="
-        cards = aiCMD
-    elseif line == "." 
+        line = string(ts(aiCMD))
+    end
+    if line == "." 
         cards = []
     else
-        cards = []
-        fs = split(line," ")
-        for f in fs
-            push!(cards,TuSacCards.cardStrToVal(f,vHand[player]))
-        end
+        cards = strToCards(TuSacManager.vPlayerHand[player],line)
     end
     
-    okToPrint(0x80) &&  println(ts(cards))
+    okToPrint(0x80) &&  println(((cards),ts(cards)))
     return cards
 end
 
@@ -3992,14 +4168,17 @@ readData = ["","","",""]
 promptData = ""
 loopCnt = [0,0,0,0]
 promptCnt = 0
+name = ["","","",""]
 tusacDeal(prevWinner)
 global playersSocket = Vector{Any}(undef,4)
+promptData = ""
+
 function prompt()
-    global promptData,promptCnt
+    global promptData,promptCnt,savePT
     if playersType == [0,0,0,0] && promptData == "C"
         promptData = ""
     end
-
+    savePT = playersType 
     if promptData != "A" && promptData != "P" && promptData != "C"
         flush(stdout)
         print("Hit ENTER to continue, \"A/P/C\" for auto-skip :")
@@ -4011,8 +4190,8 @@ function prompt()
             promptData = ""
         end
     end
-  
 end
+
 function doMain()
     while true
 
@@ -4046,19 +4225,21 @@ function doMain()
         nPlayer = [0,0,0,0]
         while !gameOver
             global gameOver, playersReply
+            if playersType == [0,0,0,0]
+                sleep(5)
+            end
             prompt()
-
             playersType = deepcopy(playersTypeLive)
-
             pcards = []
             cmd = []
+            println("ActivePlayer = ",atPlayer)
             TuSacManager.reset_mvArray()
-            
             playersReply = ["","","",""]
-
             rcCard = playaCard ? TuSacManager.play1Card(atPlayer) : TuSacManager.getDeckCard()
             if playaCard && playersType[atPlayer] == PTsocket
-                sendToSocket(atPlayer, atPlayer, rcCard, rcCard, wsPlay1Card)
+                println("SENDTOSOCK",(atPlayer,playaCard,ts(rcCard)))
+
+                sendToSocket(atPlayer, mappingPlayer(atPlayer,atPlayer), playaCard, rcCard, rcCard, wsPlay1Card)
                 Cards = waitForSocket(atPlayer, rcCard, wsPlay1Card)
                 rcCard = Cards[1]
             end
@@ -4067,7 +4248,6 @@ function doMain()
             for i in 2:4
                 nPlayer[i] = nextPlayer(nPlayer[i-1])
             end
-
             okToPrint(0x4) && println("players=",(nPlayer),(playersType))
             push!(pcards,playaCard ? activeCard : TuSacManager.Match1or2Card(activeCard,nPlayer[1]))
             push!(cmd,"M")
@@ -4080,13 +4260,16 @@ function doMain()
             end
             beginI = playaCard ? 2 : 1
             for i in beginI:4
-                if playersType[nPlayer[i]] == PTsocket 
-                    sendToSocket(nPlayer[i],atPlayer,activeCard,pcards[i], cmd[i])
+                p = nPlayer[i]
+                if playersType[p] == PTsocket 
+                    println("SENDTOSOCK",(atPlayer,playaCard,ts(activeCard),pcards[i],cmd[i]))
+                    sendToSocket(p,mappingPlayer(p,atPlayer),playaCard,activeCard,pcards[i], cmd[i])
                 end
             end
             for i in beginI:4
-                if playersType[nPlayer[i]] == PTsocket 
-                    pcards[i] = waitForSocket(nPlayer[i],pcards[i], cmd[i])
+                p = nPlayer[i]
+                if playersType[p] == PTsocket 
+                    pcards[i] = waitForSocket(p,pcards[i], cmd[i])
                 end
             end
             nP,nWin,nr = TuSacManager.whoWinRnd(activeCard,playaCard,nPlayer[1],pcards)
@@ -4128,21 +4311,20 @@ function doMain()
                 gameOver = true
             end
 
-            TuSacManager.print_mvArray(gameOver)
-            println(TuSacManager.string_TArray(gameOver))
+            println(TuSacManager.string_TArray(gameOver,1,nP))
             for i in 1:4
                 if playersType[i] == PTsocket
-                    okToPrint(0x80) && println("Sending To socket ",i) 
-                    checkWrite(i,TuSacManager.string_TArray(gameOver))
+                    astr = TuSacManager.string_TArray(gameOver,i,nP)
+                    sendToSocket(i,astr)
                 end
                 if playersTypeDelay[i] > PTai
                     playersTypeDelay[i] -= 1
                 end
-
+            end
+            for i in 1:4
+                playersType[i] == PTsocket && waitForSocket(i)
             end
         end
-       # exit()
-        #readline()
     end
 end
 function doNW()
@@ -4159,16 +4341,23 @@ function doNW()
         if i != 0
              
             conn = accept(server)
-            println("Accepted: ",i)
+            println("Accepted: ",i," writeData=",writeData[i]," readData=",readData[i], " writeCnt=",writeCnt[i])
+            println(conn,i)
+            name[i] = readline(conn)
             clientId = i
             readData[i] = ""
+            writeData[i] = " "
+
             playersSocket[i] = conn
             playersTypeLive[i] = PTsocket
             loopCnt[i] = 0
-
+            writeCnt[i] = 1
+            while playersType[i] != PTsocket
+                sleep(.1)
+            end
             @spawn networkLoop(clientId,conn)
         else
-            sleep(4)
+            sleep(8)
         end
     end
 end
@@ -4180,34 +4369,41 @@ function cleanup(myID)
     global playersTypeLive[myID] = PTai
     global playersTypeDelay[myID] = PTsocket + PTsocket
     global playersType[myID] = PTai
+    global promptData = promptData == "C" ? promptData = "" : promptData
     println("Player $myID disconnected")
     return
 end
 
 function networkLoop(myId,myConn)
+    saveStr = ""
+    saveStr1 = ["","","",""]
     while true
+    
         global loopCnt
         gameOver = false
         writeData[myId] = "1"
         while TuSacManager.gameReady == false
-            println("Waiting for Ready")
+            filterprintln("Waiting for Ready",saveStr)
             sleep(.1)
         end
         try
-            TuSacManager.printTable(myConn)
-            TuSacManager.printCoins(myConn)
+            TuSacManager.printTable(myConn,myId)
+            TuSacManager.printCoins(myConn,myId)
         catch
             return
         end
         writeData[myId] = ""
+        writeCnt[myId] = 0
         while !gameOver
             global writeData, readData, readyToRead, playersTypeLive,playersType,loopCnt
+        
             while length(writeData[myId]) == 0 
-                sleep(.2)
+                # saveStr1[myId] = filterprintln("Wait WRITEDATA $myId to get Data",saveStr1[myId])
+                sleep(1)
             end
-            loopCnt[myId] += 1
 
             line = writeData[myId]
+            writeData[myId] = ""
             gameOver = line[1] == 'g'
             try
                 println(myConn,line)
@@ -4215,32 +4411,32 @@ function networkLoop(myId,myConn)
                 cleanup(myId)
                 return
             end
-            okToPrint(0x80) && println("Socket $myId send ",line)
+            okToPrint(0x80) && println("NWL: send to $myId ",line)
 
             try
                 line =  readline(myConn)
+                okToPrint(0x80) && println("NWL: receive $myId\"$line\" ")
+
                 if line == ""
                     cleanup(myId)
                     return
-                elseif line == "+"
-                    #nothing ... chew this
-                    okToPrint(0x80) && println("Socket $myId Ack \"+\" ")
                 else
-                    readData[myId] = line
-                    okToPrint(0x80) && println("Socket $myId Reply \"$line\" ")
+                    !gameOver && (readData[myId] = line)
                 end
-                writeData[myId] = ""
 
             catch e
                 cleanup(myId)
                 return
             end
-          
         end
-     
+        line = readline(myConn)
+        println(myId," ",line)
+        readData[myId] = "+"
 
     end
 end
+@spawn doNW()
 
-@spawn doMain()
-doNW()
+doMain()
+
+
