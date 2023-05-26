@@ -1704,9 +1704,9 @@ module TuSacManager
     nextPlayer(p) = p == 4 ? 1 : p + 1
     prevPlayer(p) = p == 1 ? 4 : p - 1
     
-    function removeCards!(arrNo, n, cards)
+    function removeCards!(deck, n, cards)
         global mvArray
-        if arrNo == 0
+        if deck
             nc = pop!(mGameDeck, 1)
             nca = pop!(vGameDeck)
             return(nc,nca)
@@ -1727,17 +1727,17 @@ module TuSacManager
         end
     end
 
-    function addCards!(arrNo, n, cards)
+    function addCards!(discard, n, cards)
         global mvArray
         for c in cards
             updateCntPlayedCard(c)
             push!(mvArray,(0,n,c))
-            if arrNo == 0
+            if !discard 
                 push!(vPlayerAsset[n], c)
             else
                 push!(vPlayerDiscard[n], c)
             end
-            if arrNo == 0
+            if !discard 
                 push!(playerAsset[n],ts(c))
             else
                 push!(playerDiscard[n],ts(c))
@@ -1897,8 +1897,8 @@ module TuSacManager
             for pss in allPairs 
                 for ps in pss
                     if length(ps) == 4
-                        removeCards!(1,i,ps)
-                        addCards!(0,i,ps)
+                        removeCards!(false,i,ps)
+                        addCards!(false,i,ps)
                         all_assets_marks[ps[1]] = 1
                         kpoints[i] += 8
                         khui[i] = 2
@@ -3613,7 +3613,7 @@ bp1BoDoiCnt = 0
 zoomCardXdim = div(zoomCardYdim*cardXdim,cardYdim)
 const tableXgrid = 20
 const tableYgrid = 20
-FaceDown = wantFaceDown
+global FaceDown = wantFaceDown
 const cardGrid = 4
 const gameDeckMinimum = 9
 eRrestart = 1
@@ -4113,7 +4113,7 @@ function tusacDeal(winner)
         playerC_hand = P1_hand
         playerD_hand = P2_hand
     end
-    FaceDown = wantFaceDown
+    global FaceDown = wantFaceDown
     setupDrawDeck(gameDeck, GUILoc[13,1], GUILoc[13,2], GUILoc[13,3], FaceDown)
     setupDrawDeck(playerD_hand, GUILoc[4,1], GUILoc[4,2], GUILoc[4,3],  FaceDown)
     setupDrawDeck(playerC_hand, GUILoc[3,1], GUILoc[3,2], GUILoc[3,3],  FaceDown)
@@ -4138,7 +4138,7 @@ function tusacDeal(winner)
     push!(gameDeck,pop!(playerC_discards,1))
     push!(gameDeck,pop!(playerB_discards,1))
     push!(gameDeck,pop!(playerA_discards,1))
-    FaceDown = wantFaceDown
+    global FaceDown = wantFaceDown
     global pBseat = setupDrawDeck(playerB_hand, GUILoc[2,1], GUILoc[2,2], GUILoc[2,3],  FaceDown)
     global human_state = setupDrawDeck(playerA_hand, GUILoc[1,1], GUILoc[1,2], GUILoc[1,3], false)
     replayHistory(0)
@@ -4948,7 +4948,7 @@ function removeCards!(cond,isDeck, n, cards)
         push!(gameDeck,nc)
         return nc
     end
-    TuSacManager.removeCards!(isDeck ? 0 : 1,n,cards)
+    TuSacManager.removeCards!(isDeck,n,cards)
     if haBai
         return
     end
@@ -4991,7 +4991,7 @@ function removeCards!(cond,isDeck, n, cards)
                 end
             end
             @assert found
-            FaceDown = !isGameOver()
+            global FaceDown = !isGameOver()
 
             if m == 1
                 pop!(playerA_hand,ts(c))
@@ -5015,7 +5015,7 @@ function removeCards!(cond,isDeck, n, cards)
     end
 end
 
-function addCards!(cond,assetCard, n, cards)
+function addCards!(cond,discard, n, cards)
     global matchSingle
     if cond 
         return
@@ -5023,21 +5023,20 @@ function addCards!(cond,assetCard, n, cards)
     if haBai
         return
     end
-    TuSacManager.addCards!(assetCard,n,cards)
-    if n < 5 && assetCard && length(cards) > 0
+    TuSacManager.addCards!(discard,n,cards)
+    if n < 5 && discard && length(cards) > 0
         matchSingle[n] = cards[1]
     end
-    m  = playerMaptoGUI(n)
+    m  = n
     for c in cards
-        updateCntPlayedCard(c)
         if histFile
             for i in 1:16
                 if moveArray[i,1] == c
-                    moveArray[i,3] = (assetCard+1)*4 + m
+                    moveArray[i,3] = (discard+1)*4 + m
                     break
                 elseif moveArray[i,1] == 0
                     moveArray[i,1] = c
-                    moveArray[i,3] = (assetCard+1)*4 + m
+                    moveArray[i,3] = (discard+1)*4 + m
                     break
                 end
             end
@@ -5045,12 +5044,12 @@ function addCards!(cond,assetCard, n, cards)
         if okToPrint(0x1)
             println("ADD ",ts(c)," from ",n," map-> ",m," myPlayer=",myPlayer)
         end
-        if assetCard
+        if !discard
             push!(all_assets[n], c)
         else
             push!(all_discards[n], c)
         end
-        if assetCard
+        if !discard
             if m== 1
                 push!(playerA_assets,ts(c))
                 asset1 = setupDrawDeck(playerA_assets, GUILoc[5,1], GUILoc[5,2], GUILoc[5,3], false,true)
@@ -5216,7 +5215,7 @@ function replayHistory(index,a=[],sel=1,fileMode=0,testP = 0, card=boDoiCard)
     getData_all_hands()
     getData_all_discard_assets()
     if GUI
-        FaceDown = !isGameOver()
+        global FaceDown = !isGameOver()
 
         a5 = setupDrawDeck(gameDeck, GUILoc[13,1], GUILoc[13,2], GUILoc[13,3], FaceDown)
 
@@ -5745,12 +5744,12 @@ function moveCard!( fromIndex,toIndex,crd)
     else
         card = TuSacCards.findCard(all_hands[fromIndex],crd)
     end
-    println("REMOVE CARD:",(fromIndex,toIndex),ts(card))
+    okToPrint(0x80) && println("REMOVE CARD:",(fromIndex,toIndex),ts(card))
     removeCards!(false,fromIndex==0,fromIndex,card)
 
     n = toIndex > 4 ? toIndex - 4 : toIndex
-    println("ADD CARD:",(fromIndex,toIndex),ts(card))
-    addCards!(false,toIndex<5, n, card)
+    okToPrint(0x80) && println("ADD CARD:",(fromIndex,toIndex),ts(card))
+    addCards!(false,toIndex>4, n, card)
 end
 
 
@@ -5809,7 +5808,7 @@ function gamePlay1Iteration()
         println("ActiveCard ",ts(tsActiveCard))
         ActiveCard = mmm
         lsx, lsy = actors[mmm].pos
-        FaceDown = !isGameOver()
+        global FaceDown = !isGameOver()
 
         if facedown == FaceDown
             mask[mmm] = mask[mmm] & 0xFE
@@ -5886,9 +5885,18 @@ function gamePlay1Iteration()
     end
     
     if(rem(glIterationCnt,4) ==0)
-        println("HERE-begin")
+        okToPrint(0x80) && println("HERE-begin")
         global rdCmd = readline(remoteMaster)
-        println("Receive remote cmd = ",rdCmd)
+        if rdCmd[1] == 'N'
+            println(rdCmd)
+            n = split(rdCmd,",")
+            t =["","","",""]
+            global playerRootName = n[2:5]
+            setGUIname(setPlayerName(playerRootName,t))
+            println(remoteMaster,"AckName")
+            global rdCmd = readline(remoteMaster)
+        end
+        okToPrint(0x80) && println("Receive remote cmd = ",rdCmd)
         global rmCmd = split(rdCmd,",")
         rmPlay1Card = rmCmd[1] == "true"
         rmActivePlayer = parse(Int,rmCmd[2])
@@ -5903,9 +5911,7 @@ function gamePlay1Iteration()
         else
             rmNewCard = gameDeckArray[end]
         end
-        println("rmNewCard ",ts(rmNewCard),rmCmd[3])
-        #All_hand_updateActor(rmNewCard,!FaceDown)
-
+        okToPrint(0x80) && println("rmNewCard ",ts(rmNewCard),rmCmd[3])
         glNeedaPlayCard = rmPlay1Card
         glPrevPlayer = rmActivePlayer
 
@@ -6712,8 +6718,7 @@ function gsStateMachine(gameActions)
     global playerA_discards,playerB_discards,playerC_discards,playerD_discards
     global playerA_assets,playerB_assets,playerC_assets,playerD_assets,khapMatDau
     global kpoints,khui,myPlayer,loadPlayer,isTestFile,tstMoveArray,PlayedCardCnt, points
-   prevIter = 0
-
+    prevIter = 0
     if tusacState == tsSinitial
 # -------------------A
         global mode
@@ -6728,13 +6733,11 @@ function gsStateMachine(gameActions)
                 if !noGUI()
                     setGUIname(playerName)
                 end
-              #  networkInit()
                 thinNetworkInit()
-
                 gameDeck = TuSacCards.ordered_deck()
             end
             if noGUI() == false
-                FaceDown = wantFaceDown
+                global FaceDown = wantFaceDown
                 deckState = setupDrawDeck(gameDeck,GUILoc[13,1], GUILoc[13,2], 14 ,  FaceDown)
                 if coldStart
                     if (GENERIC == 1)
@@ -6793,31 +6796,22 @@ function gsStateMachine(gameActions)
 
     elseif tusacState == tsSdealCards
 # -------------------A
-global cardsIndxArr = []
-global GUI_ready = false
+        global cardsIndxArr = []
+        global GUI_ready = false
     #    if gameActions == gsOrganize
             if okToPrint(0x1)
                 println("Prev Game Winner =", gameEnd)
             end
             global restartFlag = true
             prevWinner = gameEnd
-        
+            global gameEnd = 0
+            global FaceDown = wantFaceDown
             tusacDeal(prevWinner)
-        
-        #    gameOver(0)
-        #    organizeHand(playerA_hand)
-        #    organizeHand(playerB_hand)
-        #    organizeHand(playerC_hand)
-         #   organizeHand(playerD_hand)
-        #   getData_all_hands()
-           
-         #   setupDrawDeck(playerA_hand, GUILoc[1,1], GUILoc[1,2],  GUILoc[1,3],  false)
             if okToPrint(0x5)
                 println("\nDealing is completed,prevWinner=",prevWinner)
             end
             TuSacManager.init()
-         #   TuSacManager.doShuffle(10)
-          #  TuSacManager.dealCards(prevWinner)
+            global FaceDown = true
             TuSacManager.readServerTable(remoteMaster)
             coinsArr = TuSacManager.readRFCoins(remoteMaster)
             println("coins=",coinsArr)
@@ -6839,53 +6833,13 @@ global GUI_ready = false
 
             gameDeck = pGameDeck
             getData_all_hands()
-
             getData_all_discard_assets()
-           # okToPrint(0x80) && printAllInfo()
-          #  okToPrint(0x80) && TuSacManager.printTable()
+            printAllInfo()
 
             coins = []
             global gameStart = true
-            """
-            for i in 1:4
-                coinsCnt = 0
-                allPairs, singles, chot1s, miss1s, missTs, miss1sbar,chotPs,chot1Specials =
-                scanCards(all_hands[i],false)
-                for pss in allPairs
-                    for ps in pss
-                        if okToPrint(0x1)
-                            println("checking for Khui")
-                            println(ps,length(ps))
-                        end
-                        if length(ps) == 4
-                            removeCards!(false,i,ps)
-                            addCards!(true,i,ps)
-                            all_assets_marks[ps[1]] = 1
-                            kpoints[i] += 8
-                            khui[i] = 2
-                            if GUI
-                                isTestFile == false && createCoin(1,i,coinsCnt)
-                                coinsArr[i][1] += 1
-                                coinsCnt += 1
-                            end
-                        elseif length(ps) == 3
-                            kpoints[i] += 3
-
-                            if is_T(ps[1])
-                                points[i] -= 3
-                            end
-                            if GUI
-                                isTestFile == false && createCoin(2,i,coinsCnt)
-                                coinsArr[i][2] += 1
-
-                                coinsCnt += 1
-                            end
-                        end
-                    end
-                end
-            end
-            """
-          coinsCnt = 0
+      
+            coinsCnt = 0
             for p in 1:4
                 for i in 1:2
                     c = coinsArr[p][i]
@@ -6923,7 +6877,6 @@ global GUI_ready = false
     elseif tusacState == tsGameLoop
         if gameActions == gsRestart
             tusacState = tsSinitial
-            println("------------------------------------------RESET")
             RESET1()
             RESET2()
             RESET3()
@@ -6934,7 +6887,7 @@ global GUI_ready = false
             khui = [1,1,1,1]
             khapMatDau = zeros(4)
             coldStart = false
-            FaceDown = wantFaceDown
+            global FaceDown = wantFaceDown
             ActiveCard = 0
             saveI = 0
             all_assets = []

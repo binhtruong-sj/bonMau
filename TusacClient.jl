@@ -4352,7 +4352,13 @@ function doMain()
         while !gameOver
             global areply
             cmd = readline(nwMaster)
+            if cmd[1] == 'N'
+                println(cmd)
+                println(nwMaster,"AckName")
+                cmd = readline(nwMaster)
+            end
             println("Receive cmd = ",cmd)
+
             reply = getReply()
             println(nwMaster,reply)
         
