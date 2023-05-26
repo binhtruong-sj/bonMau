@@ -3259,9 +3259,10 @@ function config(fn)
                 
             elseif lcCmp(keyword,"serverURL")
                 serverURL = string(rl[2])
+                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
             elseif lcCmp(keyword,"serverIP")
                 serverIP = getaddrinfo(string(rl[2]))
-                serverPort = parse(Int,rl[3])
+                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
             elseif lcCmp(keyword,"generic")
@@ -4386,7 +4387,7 @@ end
 function cleanup(myID)
     global readData[myID] = "="
     global writeData[myID] = ""
-    global playerName[myID] = string("Robo ",pots[myID]," ",aiTrait[myID])
+    global playerName[myID] = string("Robo ")
     global sendName = [true,true,true,true]
     global playersTypeLive[myID] = PTai
     global playersTypeDelay[myID] = PTsocket + PTsocket
