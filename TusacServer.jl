@@ -1951,13 +1951,14 @@ module TuSacManager
         end
         return []
     end
-
+    foundSaki = false
     """
     chk2(playCard) check for pairs -- also check for P XX ? M
 
     """
     function chk2(playCard;win=false)
         global coDoiCards
+        global foundSaki = false
         function chk2Print()
             found = false
             if !is_c(playCard)
@@ -1966,7 +1967,7 @@ module TuSacManager
                         !is_T(m1[1]) &&
                         !is_T(m1[2])
                         if okToPrint(0x8)
-                        println("Found Saki -- allow bo doi")
+                            println("Found Saki -- allow bo doi")
                         end
                         found = true
                         break
@@ -2026,6 +2027,7 @@ module TuSacManager
                     end
                 elseif !is_c(playCard) && card_equal(ap[1], playCard)
                     if (p == 1) && found
+                        foundSaki = true
                         return []  # SAKI -- return nothing
                     else
                         if p == 1
@@ -2850,7 +2852,7 @@ module TuSacManager
        
         pass,win,lastTrsh = passOnMatchLastTrash(pcard,rc,boDoiFlag[player])
         if win
-            okToPrint(1) && println("P=",player," Match2=",ts(rc))
+            okToPrint(1) && println("P=",player," Match2=",ts(rc),".")
             return rc
         elseif pass > 2
             rc = []
@@ -2926,7 +2928,7 @@ module TuSacManager
         end
         pass,win,lastTrsh = passOnMatchLastTrash(pcard,rc,boDoiFlag[player])
         if win
-            okToPrint(1) && println("P=",player," Match2-1=",ts(rc))
+            okToPrint(1) && println("P=",player," Match2+1=",ts(rc),".")
             return rc
         elseif pass > 2
             rc = []
@@ -4183,6 +4185,36 @@ tusacDeal(prevWinner)
 global playersSocket = Vector{Any}(undef,4)
 promptData = ""
 
+if isfile("tsGUI.jl")
+    rf = open("tsGUI.jl","r")
+    myversion = readline(rf)
+    close(rf)
+else
+    myverstion = "version = \"0.000\""
+end
+
+function checkNupdate(myversion,nw)
+    rmversion = readline(nw)
+    println((rmversion,myversion))
+    if length(rmversion) > 10 && rmversion[1:10] == "version = " 
+        if rmversion < myversion
+            println(nw,myversion)
+            rf = open("tsGUI.jl","r")
+            global aline = myversion
+            while !eof(rf)
+                println(nw,aline)
+                aline = readline(rf)
+            end
+            println(nw,aline)
+            println(nw,"#=Binh-end=#")
+            close(rf)
+        end
+        return readline(nw)
+    else
+        return rmversion
+    end
+end
+
 function prompt()
     global promptData,promptCnt,savePT
     if playersType == [0,0,0,0] && promptData == "C"
@@ -4339,7 +4371,7 @@ function doMain()
 end
 timeOutArray = [36*60*60,20*60,20*60,20*60]
 sendName = [false,false,false,false]
-playerName = ["robo","robo","robo","robo"]
+playerName = ["Robo","Robo","Robo","Robo"]
 
 function doNW()
     while true
@@ -4359,11 +4391,11 @@ function doNW()
         println("SUM=",(sum,timeout))
 
         if i != 0
-             
             conn = accept(server)
             okToPrint(0x80) && println("Accepted: ",i," writeData=",writeData[i]," readData=",readData[i], " writeCnt=",writeCnt[i])
+            playerName[i] = checkNupdate(myversion,conn)   
             println(conn,i)
-            playerName[i] = readline(conn)
+
             sendName = [true,true,true,true]
             clientId = i
             readData[i] = ""
@@ -4404,7 +4436,7 @@ function networkLoop(myId,myConn)
     
         global loopCnt
         gameOver = false
-        writeData[myId] = "1"
+        writeData[myId] = " "
         while TuSacManager.gameReady == false
             sleep(.5)
         end
@@ -4488,8 +4520,9 @@ function networkLoop(myId,myConn)
         readData[myId] = "+"
     end
 end
-@spawn doNW()
-doMain()
+@spawn doMain()
+
+doNW()
 
 
 

@@ -4324,18 +4324,21 @@ function getReply()
     return reply
 end
 
-global nwMaster = clientSetup(serverURL,serverPort)
-playerNum =readline(nwMaster)
-playerName = string("Player",playerNum)
-println(nwMaster,playerName)
-gameOn = true
-
 function loopExit()
     n = rand(10:90)
     sleep(n)
     println(playerName," QUIT")
     exit()
 end
+
+
+global nwMaster = clientSetup(serverURL,serverPort)
+playerName = "player"
+println(nwMaster,playerName)
+playerNum =readline(nwMaster)
+playerName = string(playerName,playerNum)
+println("NAME=",playerName)
+gameOn = true
 
 function doMain()
     while gameOn
