@@ -3069,9 +3069,19 @@ function config(fn)
             elseif lcCmp(keyword,"serverURL")
                 serverURL = string(rl[2])
                 length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+                println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
             elseif lcCmp(keyword,"serverIP")
                 serverIP = getaddrinfo(string(rl[2]))
                 length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+                println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
+            elseif lcCmp(keyword,"server")
+                serverURL = string(rl[2])
+                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+                println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
+            elseif lcCmp(keyword,"myIP")
+                serverIP = getaddrinfo(string(rl[2]))
+                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+                println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
             elseif lcCmp(keyword,"generic")
@@ -5110,7 +5120,6 @@ function gamePlay1Iteration()
         global tsPrevActiveCard = tsActiveCard
         global tsActiveCard = card
         mmm = mapToActors[card]
-        println("ActiveCard ",ts(tsActiveCard))
         ActiveCard = mmm
         lsx, lsy = actors[mmm].pos
         global FaceDown = !isGameOver()

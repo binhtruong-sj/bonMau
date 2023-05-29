@@ -1050,6 +1050,7 @@ module TuSacManager
                                         
     function printTable()
     # checksum()
+        
         println("====Manager======Hands")
         for (i,ah) in enumerate(vPlayerHand)
             print(i,": ");ts_s(ah)
@@ -1095,6 +1096,7 @@ module TuSacManager
             end
         end
     end
+
     function TableToString()
         # checksum()
         astr = ""
@@ -3142,7 +3144,57 @@ module TuSacManager
     
     function endTurn()
         nPlayer, winner, r =  whoWin!(glIterationCnt, glNewCard,glNeedaPlayCard,t1Player,t2Player,t3Player,t4Player)
+    end
 
+
+    function c_points(p,s)
+        points = 0
+        if length(p[1]) == 4
+            points = 4
+        elseif length(p[1]) == 3
+            points = 2
+            if length(s) > 0
+                points = 3
+            end
+        elseif length(p[1]) == 2
+            if length(s) == 2
+                points = 2
+            end
+        elseif length(s) > 2
+            points = length(s) - 2
+        end
+        return points
+    end
+    
+    function pointsCalc(winner)
+        global pots, kpoints, points, khui
+        if winner < 5
+            allPairs, single, chot1, miss1, missT, miss1Card, chotP, chot1Special, suitCnt =
+            scanCards(vPlayerHand[winner],false,true)
+            points[winner] += 3 + suitCnt + c_points(chotP,chot1Special)+ kpoints[winner]
+            if khui[winner] == 2
+                points[winner] *= 2
+            end
+            kpoints[winner] = points[winner]
+        else
+            kpoints = zeros(Int8,4)
+        end
+    end
+
+    function pointsUpdate(nP,nr,activeCard)
+        if length(nr)== 2 || (is_T(activeCard) && length(nr) == 0)
+            points[nP] += 1
+        elseif length(nr) == 3 
+            if card_equal(nr[1],nr[2])
+                kpoints[nP] += 3
+                if is_T(nr[1])
+                    points[nP] += 3
+                end
+                khui[nP] = 2
+            else
+                points[nP] += 2
+            end
+        end
     end
 
 end # end TuSacManager
@@ -3265,6 +3317,14 @@ function config(fn)
             elseif lcCmp(keyword,"serverIP")
                 serverIP = getaddrinfo(string(rl[2]))
                 length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+
+            elseif lcCmp(keyword,"server")
+                serverURL = string(rl[2])
+                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+            elseif lcCmp(keyword,"myIP")
+                serverIP = getaddrinfo(string(rl[2]))
+                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
             elseif lcCmp(keyword,"generic")
@@ -4193,37 +4253,39 @@ else
     myverstion = "version = \"0.000\""
 end
 
-function checkNupdate(myversion,nw)
+function checkNupdate(id,myversion,nw)
     rmversion = readline(nw)
     println((rmversion,myversion))
     if length(rmversion) > 10 && rmversion[1:10] == "version = " 
+        println("rm,my=",(rmversion,myversion))
         if rmversion < myversion
             println(nw,myversion)
             rf = open("tsGUI.jl","r")
-            global aline = myversion
             while !eof(rf)
-                println(nw,aline)
                 aline = readline(rf)
+                println(nw,aline)
             end
-            println(nw,aline)
             println(nw,"#=Binh-end=#")
             close(rf)
         end
-        return readline(nw)
+        println("Completed updated player ",id)
+        close(nw)
+        return ""
     else
         return rmversion
     end
 end
 
 function prompt()
-    global promptData,promptCnt,savePT
-    if playersType == [0,0,0,0] && promptData == "C"
+    global promptData,promptCnt,savePT,gameOver
+    if (playersType == [0,0,0,0] && promptData == "C") || 
+        ( gameOver &&  promptData == "G")
         promptData = ""
     end
     savePT = playersType 
-    if promptData != "A" && promptData != "P" && promptData != "C"
+    if promptData != "A" && promptData != "P" && promptData != "C" && promptData != "G"
         flush(stdout)
-        print("Hit ENTER to continue, \"A/P/C\" for auto-skip :")
+        print("Hit ENTER to continue, \"A/P/C/G\" for auto-skip :")
         promptData = readline()
         promptCnt = 0
     else
@@ -4233,18 +4295,18 @@ function prompt()
         end
     end
 end
+
 timeout = 10
+pots = [0,0,0,0]
+
 function doMain()
     while true
-
         global gameOver,pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck,socketCMD,
         atPlayer, playaCard, prevWinner, playersType, playersTypeLive
         gameReady = false
-
         TuSacManager.init()
         TuSacManager.doShuffle(10)
         TuSacManager.dealCards(prevWinner)
-
         all = TuSacManager.getTable()
         pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
 
@@ -4265,12 +4327,13 @@ function doMain()
         playaCard = true
         gameOver = false
         nPlayer = [0,0,0,0]
+        prompt()
+
         while !gameOver
             global gameOver, playersReply
             if playersType == [0,0,0,0]
                 sleep(5)
             end
-            prompt()
             playersType = deepcopy(playersTypeLive)
             pcards = []
             cmd = []
@@ -4331,6 +4394,8 @@ function doMain()
                 TuSacManager.removeCards!(false,nP,nr)
                 TuSacManager.addCards!(false,nP,activeCard)
                 TuSacManager.addCards!(false,nP,nr)
+                TuSacManager.pointsUpdate(nP,nr,activeCard)
+              
                 atPlayer = nP
                 playaCard = true
             end
@@ -4340,17 +4405,22 @@ function doMain()
                 TuSacManager.removeCards!(false,TuSacManager.coDoiPlayer,TuSacManager.coDoiCards)
                 TuSacManager.addCards!(false,TuSacManager.coDoiPlayer,TuSacManager.coDoiCards)
             end
-            okToPrint(0x80) && println(playersType,playersTypeLive," TimeOut:",timeout)
-            TuSacManager.printTable()
             gameOver = nWin == 0xFE
             if gameOver
                 TuSacManager.resetReady()
             end
             if gameOver 
                 prevWinner = nP
+                TuSacManager.pointsCalc(nP)
+                for n in 1:4
+                    pots[n] += TuSacManager.kpoints[n]
+                end
+                println("Points =", TuSacManager.kpoints[nP], " Pots=",pots[nP])
+                sendName = [true,true,true,true]
             end
             if TuSacManager.baiThui()
                 gameOver = true
+                TuSacManager.pointsCalc(5)
             end
 
             okToPrint(0x80) && println(TuSacManager.string_TArray(gameOver,1,nP))
@@ -4366,10 +4436,15 @@ function doMain()
             for i in 1:4
                 (playersType[i] == PTsocket) && waitForSocket(i)
             end
+            println(playersType,playersTypeLive,pots," TimeOut:",timeout)
+            TuSacManager.printTable()
+
+            prompt()
+
         end
     end
 end
-timeOutArray = [36*60*60,20*60,20*60,20*60]
+timeOutArray = [36*60*60,5*60,5*60,5*60]
 sendName = [false,false,false,false]
 playerName = ["Robo","Robo","Robo","Robo"]
 
@@ -4393,7 +4468,11 @@ function doNW()
         if i != 0
             conn = accept(server)
             okToPrint(0x80) && println("Accepted: ",i," writeData=",writeData[i]," readData=",readData[i], " writeCnt=",writeCnt[i])
-            playerName[i] = checkNupdate(myversion,conn)   
+            playerName[i] = checkNupdate(i,myversion,conn)   
+            if playerName[i] == ""
+                println(" just update remote ... restarting connection ")
+                continue
+            end
             println(conn,i)
 
             sendName = [true,true,true,true]
@@ -4520,9 +4599,10 @@ function networkLoop(myId,myConn)
         readData[myId] = "+"
     end
 end
-@spawn doMain()
+@spawn doNW()
 
-doNW()
+ doMain()
+
 
 
 
