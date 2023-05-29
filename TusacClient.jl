@@ -4335,14 +4335,15 @@ end
 global nwMaster = clientSetup(serverURL,serverPort)
 playerName = "player"
 println(nwMaster,playerName)
-playerNum =readline(nwMaster)
+pn =readline(nwMaster)
+playerNum = parse(Int,pn)
 playerName = string(playerName,playerNum)
 println("NAME=",playerName)
 gameOn = true
 
 function doMain()
     while gameOn
-        global areply
+        global areply,playerName,playerNum
         println("New Game")
         TuSacManager.init()
         TuSacManager.readRFtable(nwMaster)
@@ -4358,6 +4359,9 @@ function doMain()
             cmd = readline(nwMaster)
             if cmd[1] == 'N'
                 println(cmd)
+                n = split(cmd,",")
+                playerName = n[2]
+                println("name=",playerName," num=",playerNum)
                 println(nwMaster,"AckName")
                 cmd = readline(nwMaster)
             end
@@ -4375,7 +4379,7 @@ function doMain()
                 f = split(mvArr[i]," ")
                 TuSacManager.moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
             end
-            println(playerName)
+            println((playerName,playerNum))
             TuSacManager.printTable()
         end
         println(nwMaster,"Restart")

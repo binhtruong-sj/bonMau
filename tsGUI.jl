@@ -5043,9 +5043,11 @@ function gamePlay1Iteration()
         global bodoiCnt
         println((r,e,cmd))
         c = split(e," ")
-        if length(c) == 0 && cmd == "P" && length(r) != 0
-            return false
-        elseif cmd != "P"
+        if cmd == "P"
+            if is_T(r[1]) || (length(c) == 0 && length(r) != 0)
+                return false
+            end
+        else
             if length(c) == 3  && c[1] == c[2] &&  c[1] == c[3] && c[3] == c[2]  && ( (length(r) != 3) || 
                 !(card_equal(r[1],r[2]) && card_equal(r[1],r[3]) && card_equal(r[3],r[2])))
                 print("miss 3 ")

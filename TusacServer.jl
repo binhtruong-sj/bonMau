@@ -4298,6 +4298,7 @@ end
 
 timeout = 10
 pots = [0,0,0,0]
+tempP = [0,0,0,0]
 
 function doMain()
     while true
@@ -4416,7 +4417,8 @@ function doMain()
                     pots[n] += TuSacManager.kpoints[n]
                 end
                 println("Points =", TuSacManager.kpoints[nP], " Pots=",pots[nP])
-                sendName = [true,true,true,true]
+                global tempP = TuSacManager.kpoints
+                global sendName = [true,true,true,true]
             end
             if TuSacManager.baiThui()
                 gameOver = true
@@ -4507,7 +4509,6 @@ function cleanup(myID)
     println("Player $myID disconnected")
     return
 end
-
 function networkLoop(myId,myConn)
     saveStr = ""
     saveStr1 = ["","","",""]
@@ -4538,7 +4539,7 @@ function networkLoop(myId,myConn)
             if sendName[myId] == true && condi
                 pName = ["","","",""]
                 for i in 1:4
-                    pName[i] = string(playerName[i]," ",pots[i]," ",aiTrait[i])
+                    pName[i] = string(playerName[i],i," A",aiTrait[i]," P",pots[i],"+",tempP[i])
                 end
                 astr = ""
                 for i in myId:4
