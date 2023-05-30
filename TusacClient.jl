@@ -4351,7 +4351,9 @@ function doMain()
         TuSacManager.printTable()
         coinsStr  = readline(nwMaster)
         println("Coins=",coinsStr)
-
+        illegalPair  = readline(nwMaster)
+        illegalSuit  = readline(nwMaster)
+        println("illegal:",illegalPair,"-",illegalSuit)
         gameOver = false
         areply = areply == "A" ? "" : areply
         while !gameOver

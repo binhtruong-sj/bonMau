@@ -848,7 +848,8 @@ module TuSacManager
         nDead=[[],[],[],[]]
         highValue = zeros(UInt8,4)
         needAcard = false
-
+        global illPairs = []
+        global illSuits = []
         global mGameDeck = TuSacCards.ordered_deck()
     end
 
@@ -1069,11 +1070,37 @@ module TuSacManager
     end
 
     function initialScan(all_hands)
-        global kpoints,khui,coinsArr,coinsCnt,points
+        global kpoints,khui,coinsArr,coinsCnt,points,illPairs,illSuits
+        illPairs = []
+        illSuits = []
+
         for i in 1:4
             coinsCnt = 0
-            allPairs, singles, chot1s, miss1s, missTs, miss1sbar,chotPs,chot1Specials =
+            allPairs, single, chot1, miss1, missT, 
+            miss1Card, chotP, chot1Special, suitCnt, 
+            miss1_1,miss1_2,cTrsh,suits =
             scanCards(all_hands[i],false)
+
+            illegal = []
+            println(allPairs)
+            for app in allPairs
+                for p in app
+                    println("AP:",ts(p))
+                    found = false
+                    for m in miss1Card
+                        if card_equal(p[1],m)
+                            found = true
+                            break
+                        end
+                    end
+                    if found == false
+                        push!(illegal,p[1])
+                    end
+                end
+            end
+
+            push!(illPairs,illegal)
+            push!(illSuits,suits)
             for pss in allPairs
                 for ps in pss
                     if length(ps) == 4
@@ -1094,6 +1121,14 @@ module TuSacManager
                     end
                 end
             end
+        end
+        println("PAIRS-------------------")
+        for e in illPairs
+            println(ts(e))
+        end
+        println("SUITS-------------------")
+        for e in illSuits
+            println(ts(e))
         end
     end
 
@@ -1166,6 +1201,8 @@ module TuSacManager
             end
         end
         println(WF)
+        println(WF,ts(illPairs[player]))
+        println(WF,ts(illSuits[player]))
     end
 
 
@@ -1183,6 +1220,8 @@ module TuSacManager
             end
         end
         println()
+        println(ts(illPairs[player]))
+        println(ts(illSuits[player]))
     end
    
     function updateDeadCard(player,card)
@@ -1399,6 +1438,7 @@ module TuSacManager
         miss1Card = []
         single = []
         cTrsh = []
+        suits = []
 
         global Tuong = zeros(UInt8,4)
 
@@ -1478,6 +1518,8 @@ module TuSacManager
                         if !is_Tst(prevAcard)
                             suitCnt += 1
                         end
+                        push!(suits,prevAcard)
+
                     elseif seqCnt == 1
                         ar = []
                         mc = missPiece(prev2card, prevAcard)
@@ -1512,6 +1554,7 @@ module TuSacManager
                 if !is_Tst(prevAcard)
                     suitCnt += 1
                 end
+                push!(suits,prevAcard)
             elseif seqCnt == 1
                 ar = []
                 mc = missPiece(prev2card, prevAcard)
@@ -1549,9 +1592,10 @@ module TuSacManager
                 end
             end
         end
+
         cTrsh = c_scan(chotP,chot1Special)
         chot1 = cTrsh
-        return allPairs, single, chot1, miss1, missT, miss1Card, chotP, chot1Special, suitCnt, miss1_1,miss1_2,cTrsh
+        return allPairs, single, chot1, miss1, missT, miss1Card, chotP, chot1Special, suitCnt, miss1_1,miss1_2,cTrsh,suits
     end
 
 
@@ -4317,9 +4361,7 @@ function doMain()
         global playerD_hand = pHand[4]
         global gameDeck = pGameDeck
         getData_all_hands()
-
         getData_all_discard_assets()
-    # TuSacManager.printTable()
         TuSacManager.initialScan(all_hands)
         printAllInfo()
         TuSacManager.setReady()

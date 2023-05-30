@@ -685,6 +685,18 @@ module TuSacCards
         end
         return 0
     end
+
+    function removeIfInArray!(deck,cards)
+        for ac in cards
+            for (i,c) in enumerate(deck)
+                if card_equal(c,ac)
+                    splice!(deck,i)
+                    break
+                end
+            end
+        end
+    end
+
     function cardStrToVal(s)
         grank = "Tstcxpm"
         gcolor = "TVDX"
@@ -1073,6 +1085,7 @@ module TuSacManager
         return coinsArr
     end
     
+
     function _ts(a)
             TuSacCards.Card(a[1])
     end
@@ -1220,6 +1233,9 @@ module TuSacManager
         end
     end
     
+    function allSuitCards(v)
+        return v,suitCards(v)
+    end
 
     """
         inSuit(a,b): check if a,b is in the same sequence cards (Tst) or (xpm) or (chots)
@@ -1313,6 +1329,21 @@ module TuSacManager
         getAllPlayerCards()
     end
     
+    function readRF_Ills(RF)
+        l1 = readline(RF)
+        c = split(l1," ")
+        illpairs = []
+        for i in 1:lastindex(c)
+            c[i] != "" && (push!(illpairs,TuSacCards.cardStrToVal(c[i])))
+        end
+        l1 = readline(RF)
+        c = split(l1," ")
+        illsuits = []
+        for i in 1:lastindex(c)
+            c[i] != "" && (push!(illsuits,TuSacCards.cardStrToVal(c[i])))
+        end
+        return illpairs,illsuits
+    end
 
     function updateDeadCard(player,card)
         push!(deadCards[player],card)
@@ -4044,7 +4075,11 @@ function suitCards(v)
     end
 end
 
-
+function allSuitCards(v)
+    a = suitCards(v)
+    push!(a,v)
+    return a
+end
 
 """
 inSuit(a,b): check if a,b is in the same sequence cards (Tst) or (xpm) or (chots)
@@ -5040,14 +5075,42 @@ function gamePlay1Iteration()
     end
 
     function chkResponse(r,e,p,cmd)
-        global bodoiCnt
+        global bodoiCnt,illegalPairs,illegalSuits
         println((r,e,cmd))
         c = split(e," ")
         if cmd == "P"
             if is_T(r[1]) || (length(c) == 0 && length(r) != 0)
                 return false
+            else
+                found = false
+                println("pairs=",ts(illegalPairs))
+                for c in illegalPairs 
+                    if card_equal(c,r[1])
+                        found = true
+                        break
+                    end
+                end
+                if found
+                    return false
+                end
+
+                println("suits=",ts(illegalSuits))
+                for cs in illegalSuits
+                    css = allSuitCards(cs)
+                    println("css=",css)
+                    for c in css
+                        if card_equal(c,r[1])
+                            found = true
+                            break
+                        end
+                    end
+                end
+                if found
+                    return false
+                end
             end
         else
+            TuSacCards.removeIfInArray!(illegalPairs,r)
             if length(c) == 3  && c[1] == c[2] &&  c[1] == c[3] && c[3] == c[2]  && ( (length(r) != 3) || 
                 !(card_equal(r[1],r[2]) && card_equal(r[1],r[3]) && card_equal(r[3],r[2])))
                 print("miss 3 ")
@@ -5860,6 +5923,7 @@ function gsStateMachine(gameActions)
     global playerA_discards,playerB_discards,playerC_discards,playerD_discards
     global playerA_assets,playerB_assets,playerC_assets,playerD_assets,khapMatDau
     global kpoints,khui,myPlayer,loadPlayer,isTestFile,tstMoveArray,PlayedCardCnt, points
+    global illegalPairs,illegalSuits 
     prevIter = 0
     if tusacState == tsSinitial
 # -------------------A
@@ -5956,7 +6020,12 @@ function gsStateMachine(gameActions)
             global FaceDown = true
             TuSacManager.readServerTable(remoteMaster)
             coinsArr = TuSacManager.readRFCoins(remoteMaster)
+            illegalPairs,illegalSuits = TuSacManager.readRF_Ills(remoteMaster)
+            println("Ill_pairs ",ts(illegalPairs))
+            println("Ill_suits ",ts(illegalSuits))
+
             println("coins=",coinsArr)
+
             TuSacManager.printTable()
             all = TuSacManager.getTable()
             pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
