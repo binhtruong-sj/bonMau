@@ -4353,7 +4353,10 @@ function doMain()
         println("Coins=",coinsStr)
         illegalPair  = readline(nwMaster)
         illegalSuit  = readline(nwMaster)
-        println("illegal:",illegalPair,"-",illegalSuit)
+        pair3s  = readline(nwMaster)
+
+        println("illegal:",illegalPair,"-",illegalSuit," pair3s=",pair3s)
+
         gameOver = false
         areply = areply == "A" ? "" : areply
         while !gameOver

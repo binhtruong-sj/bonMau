@@ -23,7 +23,7 @@ const bRANDOM = 1
 const bProbability = 2
 const bMax = 3
 const bAI = 4
-
+autoMode = 0
 function setPlayerName(root,trait)
     n = ["","","",""]
     for i in 1:4
@@ -5132,7 +5132,6 @@ function gamePlay1Iteration()
                 return false
             else
                 found = false
-                println("pairs=",ts(illegalPairs))
                 for c in illegalPairs 
                     if card_equal(c,r[1])
                         found = true
@@ -5142,11 +5141,8 @@ function gamePlay1Iteration()
                 if found
                     return false
                 end
-
-                println("suits=",ts(illegalSuits))
                 for cs in illegalSuits
                     css = allSuitCards(cs)
-                    println("css=",css)
                     for c in css
                         if card_equal(c,r[1])
                             found = true
@@ -5185,37 +5181,43 @@ function gamePlay1Iteration()
         global GUI_ready, GUI_array, humanIsGUI,rQ, rReady
         if playerIsHuman(player)
             if humanIsGUI()
-                if GUI_ready
-                    if cmd == glNeedaPlayCard && length(GUI_array) == 0
-                        return false
-                    end
+                if autoMode > 0
+                    println(remoteMaster,"=")
                     rReady[player] = true
-                    rQ[player]=GUI_array
-                    ans = checkResponse(GUI_array,rmCmd[5],pcard,rmCmd[4])
-                    if ans == false
-                        println("???")
-                        rReady[player] = false
-                        rQ[player]=[]
-                        updateErrorPic(1)
-                        global GUI_ready = false
-                        global GUI_busy = false
-                        global bbox = false
-                        global bbox1 = false
-                        return false
-                    else
-                        if length(GUI_array)==0
-                            println(remoteMaster,".")
-                        else
-                            println(remoteMaster,ts(GUI_array))
-                        end
-                        if okToPrint(0x80)
-                            print("Human-p: ", player," PlayCard = ")
-                            ts_s(rQ[player])
-                        end
-                    end
+                    rQ[player] = rmNewCard
                 else
-                    GUI && sleep(.3)
-                    return false
+                    if GUI_ready
+                        if cmd == glNeedaPlayCard && length(GUI_array) == 0
+                            return false
+                        end
+                        rReady[player] = true
+                        rQ[player]=GUI_array
+                        ans = checkResponse(GUI_array,rmCmd[5],pcard,rmCmd[4])
+                        if ans == false
+                            println("???")
+                            rReady[player] = false
+                            rQ[player]=[]
+                            updateErrorPic(1)
+                            global GUI_ready = false
+                            global GUI_busy = false
+                            global bbox = false
+                            global bbox1 = false
+                            return false
+                        else
+                            if length(GUI_array)==0
+                                println(remoteMaster,".")
+                            else
+                                println(remoteMaster,ts(GUI_array))
+                            end
+                            if okToPrint(0x80)
+                                print("Human-p: ", player," PlayCard = ")
+                                ts_s(rQ[player])
+                            end
+                        end
+                    else
+                        GUI && sleep(.3)
+                        return false
+                    end
                 end
             else
                 cards = keyboardInput(player)
@@ -5364,8 +5366,8 @@ function gamePlay1Iteration()
         end
       #  okToPrint(0x80) && checksum()
         okToPrint(0x80) && TuSacManager.printTable()
-        println("IllSuits ",ts(illegalSuits))
         println("IllPairs ",ts(illegalPairs))
+        println("IllSuits ",ts(illegalSuits))
         println("Pair3s ",ts(pair3s))
         
         if length(aiFilename) > 0
@@ -5513,7 +5515,11 @@ function gamePlay1Iteration()
         global currentPlayer = nPlayer
         if astr[1] == "gameOver" 
             gameOver(nPlayer)
-            updateWinnerPic(nPlayer)
+            if nPlayer > 4
+                updateBaiThuiPic(1)
+            else
+                updateWinnerPic(nPlayer)
+            end
             global openAllCard = true
         elseif glNeedaPlayCard
             All_hand_updateActor(glNewCard[1],!FaceDown)
@@ -5979,7 +5985,7 @@ function gsStateMachine(gameActions)
     global playerA_discards,playerB_discards,playerC_discards,playerD_discards
     global playerA_assets,playerB_assets,playerC_assets,playerD_assets,khapMatDau
     global kpoints,khui,myPlayer,loadPlayer,isTestFile,tstMoveArray,PlayedCardCnt, points
-    global illegalPairs,illegalSuits,pair3s
+    global illegalPairs,illegalSuits,pair3s,autoMode
 
     prevIter = 0
     if tusacState == tsSinitial
@@ -6074,6 +6080,9 @@ function gsStateMachine(gameActions)
                 println("\nDealing is completed,prevWinner=",prevWinner)
             end
             TuSacManager.init()
+            if autoMode == 1
+                global autoMode = 0
+            end
             global FaceDown = true
             TuSacManager.readServerTable(remoteMaster)
             coinsArr = TuSacManager.readRFCoins(remoteMaster)
@@ -6865,7 +6874,7 @@ function on_key_down(g)
     playerB_discards,
     playerC_discards,
     playerD_discards,nameSynced,
-    histFile,reloadFile,numberOfSocketPlayer, termCnt
+    histFile,reloadFile,numberOfSocketPlayer, termCnt,autoMode
         if g.keyboard.Q
             if mode == m_server
                 println("Server can not quit! -- game will be terminated")
@@ -6879,13 +6888,11 @@ function on_key_down(g)
                 nameSynced = false
             end
         elseif g.keyboard.A
-            if mode_human == true
-                playerName[myPlayer] = string("Bot-",NAME,aiTrait[myPlayer])
-            else
-                playerName[myPlayer] = NAME
-            end
-            println("Attempting to switch human-mode from ", mode_human, playerName[myPlayer])
-            nameSynced = false
+            println("A")
+            global autoMode = 2 
+        elseif g.keyboard.G
+            println("g")
+            global autoMode = 1
         end
 
         if tusacState == tsSdealCards && g.keyboard.enter
