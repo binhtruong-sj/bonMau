@@ -5365,10 +5365,12 @@ function gamePlay1Iteration()
                 printAllInfo()
         end
       #  okToPrint(0x80) && checksum()
-        okToPrint(0x80) && TuSacManager.printTable()
-        println("IllPairs ",ts(illegalPairs))
-        println("IllSuits ",ts(illegalSuits))
-        println("Pair3s ",ts(pair3s))
+        if okToPrint(0x80) 
+            TuSacManager.printTable()
+            println("IllPairs ",ts(illegalPairs))
+            println("IllSuits ",ts(illegalSuits))
+            println("Pair3s ",ts(pair3s))
+        end
         
         if length(aiFilename) > 0
             getScaledData(aiFilename)
@@ -5503,8 +5505,8 @@ function gamePlay1Iteration()
 
         moveStr = readline(remoteMaster)
         println(remoteMaster,"+")
-
-        println("REMOTE MSG, Move array:",moveStr)
+        
+        okToPrint(0x90) && println("REMOTE MSG, Move array:",moveStr)
         mvArr = split(moveStr,",")
         for i in 2:lastindex(mvArr) -1
             f = split(mvArr[i]," ")
@@ -6087,13 +6089,12 @@ function gsStateMachine(gameActions)
             TuSacManager.readServerTable(remoteMaster)
             coinsArr = TuSacManager.readRFCoins(remoteMaster)
             illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
-            println("Ill_pairs ",ts(illegalPairs))
-            println("Ill_suits ",ts(illegalSuits))
-            println("pair3s ",ts(pair3s))
-
-            println("coins=",coinsArr)
-
-            TuSacManager.printTable()
+            if okToPrint(0x90)
+                println("Ill_pairs ",ts(illegalPairs))
+                println("Ill_suits ",ts(illegalSuits))
+                println("pair3s ",ts(pair3s))
+                println("coins=",coinsArr)
+            end
             all = TuSacManager.getTable()
             pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
             global playerA_hand = pHand[1]
@@ -6112,7 +6113,6 @@ function gsStateMachine(gameActions)
             gameDeck = pGameDeck
             getData_all_hands()
             getData_all_discard_assets()
-            printAllInfo()
 
             coins = []
             global gameStart = true
