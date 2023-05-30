@@ -1,4 +1,4 @@
-version = "0.A00"
+version = "0.A01"
 using GameZero
 using Sockets
 using Random: randperm
@@ -470,6 +470,24 @@ module TuSacCards
     """
     suits() = (T, V, D, X)
 
+
+    function _ts(a)
+        TuSacCards.Card(a[1])
+    end
+
+    function ts(a)
+        st = ""
+        if length(a) == 1
+            st = _ts(a)
+        else
+            if length(a) > 1
+                for b in a
+                    st = string(st,_ts(b)," ")
+                end
+            end
+        end
+        return st
+    end
     """
         full_deck
 
@@ -690,6 +708,7 @@ module TuSacCards
         for ac in cards
             for (i,c) in enumerate(deck)
                 if card_equal(c,ac)
+                    println("illegalPair remove Match ",(ts(c),ts(ac)))
                     splice!(deck,i)
                     break
                 end
@@ -726,6 +745,11 @@ module TuSacCards
         return tohand
     end
 
+    """
+    findCard(hand,s)
+
+    expected to find c in hand (error if not), s is a single card (in text)
+    """
     function findCard(hand,s)
         grank = "Tstcxpm"
         gcolor = "TVDX"
@@ -739,6 +763,23 @@ module TuSacCards
             end
         end
         return s
+    end
+    
+
+    """
+    ifFindCard(hand,cs)
+
+    check to see if each c in cs may exist in hand
+    """
+    function ifFindCard(hand,cs)
+        for c in cs
+            for h in hand
+                if card_equal(c,h)
+                    return true
+                end
+            end
+        end
+        return false
     end
     
     """
@@ -1303,6 +1344,8 @@ module TuSacManager
         println("gameDeck")
         println(mGameDeck)
         println()
+       
+
     end
 
 
@@ -1342,7 +1385,13 @@ module TuSacManager
         for i in 1:lastindex(c)
             c[i] != "" && (push!(illsuits,TuSacCards.cardStrToVal(c[i])))
         end
-        return illpairs,illsuits
+        pair3s = []
+        l1 = readline(RF)
+        c = split(l1," ")
+        for i in 1:lastindex(c)
+            c[i] != "" && (push!(pair3s,TuSacCards.cardStrToVal(c[i])))
+        end
+        return illpairs,illsuits,pair3s
     end
 
     function updateDeadCard(player,card)
@@ -5074,7 +5123,7 @@ function gamePlay1Iteration()
         return true
     end
 
-    function chkResponse(r,e,p,cmd)
+    function checkResponse(r,e,p,cmd)
         global bodoiCnt,illegalPairs,illegalSuits
         println((r,e,cmd))
         c = split(e," ")
@@ -5110,20 +5159,24 @@ function gamePlay1Iteration()
                 end
             end
         else
-            TuSacCards.removeIfInArray!(illegalPairs,r)
-            if length(c) == 3  && c[1] == c[2] &&  c[1] == c[3] && c[3] == c[2]  && ( (length(r) != 3) || 
-                !(card_equal(r[1],r[2]) && card_equal(r[1],r[3]) && card_equal(r[3],r[2])))
-                print("miss 3 ")
+            if length(c) == 3  && c[1] == c[2] &&  c[2] == c[3]  && ( (length(r) != 3) || 
+                !(card_equal(r[1],r[2]) && card_equal(r[3],r[2])))
+                # have pair3 but miss matching it
                 return false
             elseif length(c) == 2  && c[1] == c[2] && ( (length(r) != 2) || 
                 !card_equal(r[1],r[2]) )
                 print("bo-doi ",bodoiCnt)
                 bodoiCnt += 1
-                bodoiCnt > 1 ? (return true) : (return false)
+                bodoiCnt < 2 && (return false)
             elseif !chkSuit(p,r)
-                print("notsuit ")
+                # print("notsuit ")
+                return false
+            elseif ((length(r)!=3) || (!card_equal(r[1],r[2]) || !card_equal(r[2],r[3])) ) && TuSacCards.ifFindCard(pair3s,r) 
+                # using 1 of pair3 for not matching 3 -- 
                 return false
             end
+            TuSacCards.removeIfInArray!(illegalPairs,r)
+
         end
 
         return true
@@ -5138,7 +5191,7 @@ function gamePlay1Iteration()
                     end
                     rReady[player] = true
                     rQ[player]=GUI_array
-                    ans = chkResponse(GUI_array,rmCmd[5],pcard,rmCmd[4])
+                    ans = checkResponse(GUI_array,rmCmd[5],pcard,rmCmd[4])
                     if ans == false
                         println("???")
                         rReady[player] = false
@@ -5311,6 +5364,9 @@ function gamePlay1Iteration()
         end
       #  okToPrint(0x80) && checksum()
         okToPrint(0x80) && TuSacManager.printTable()
+        println("IllSuits ",ts(illegalSuits))
+        println("IllPairs ",ts(illegalPairs))
+        println("Pair3s ",ts(pair3s))
         
         if length(aiFilename) > 0
             getScaledData(aiFilename)
@@ -5923,7 +5979,8 @@ function gsStateMachine(gameActions)
     global playerA_discards,playerB_discards,playerC_discards,playerD_discards
     global playerA_assets,playerB_assets,playerC_assets,playerD_assets,khapMatDau
     global kpoints,khui,myPlayer,loadPlayer,isTestFile,tstMoveArray,PlayedCardCnt, points
-    global illegalPairs,illegalSuits 
+    global illegalPairs,illegalSuits,pair3s
+
     prevIter = 0
     if tusacState == tsSinitial
 # -------------------A
@@ -6020,9 +6077,10 @@ function gsStateMachine(gameActions)
             global FaceDown = true
             TuSacManager.readServerTable(remoteMaster)
             coinsArr = TuSacManager.readRFCoins(remoteMaster)
-            illegalPairs,illegalSuits = TuSacManager.readRF_Ills(remoteMaster)
+            illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
             println("Ill_pairs ",ts(illegalPairs))
             println("Ill_suits ",ts(illegalSuits))
+            println("pair3s ",ts(pair3s))
 
             println("coins=",coinsArr)
 

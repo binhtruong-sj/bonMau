@@ -850,6 +850,7 @@ module TuSacManager
         needAcard = false
         global illPairs = []
         global illSuits = []
+        global pair3s = []
         global mGameDeck = TuSacCards.ordered_deck()
     end
 
@@ -1070,9 +1071,10 @@ module TuSacManager
     end
 
     function initialScan(all_hands)
-        global kpoints,khui,coinsArr,coinsCnt,points,illPairs,illSuits
+        global kpoints,khui,coinsArr,coinsCnt,points,illPairs,illSuits,pair3s
         illPairs = []
         illSuits = []
+        pair3s = []
 
         for i in 1:4
             coinsCnt = 0
@@ -1087,10 +1089,12 @@ module TuSacManager
                 for p in app
                     println("AP:",ts(p))
                     found = false
-                    for m in miss1Card
-                        if card_equal(p[1],m)
-                            found = true
-                            break
+                    if length(p) == 2
+                        for m in miss1Card
+                            if card_equal(p[1],m)
+                                found = true
+                                break
+                            end
                         end
                     end
                     if found == false
@@ -1098,9 +1102,15 @@ module TuSacManager
                     end
                 end
             end
+            pair3 = []
+            for p in allPairs[2]
+                push!(pair3,p[1])
+            end
 
             push!(illPairs,illegal)
             push!(illSuits,suits)
+            push!(pair3s,pair3)
+
             for pss in allPairs
                 for ps in pss
                     if length(ps) == 4
@@ -1128,6 +1138,10 @@ module TuSacManager
         end
         println("SUITS-------------------")
         for e in illSuits
+            println(ts(e))
+        end
+        println("pair3-------------------")
+        for e in pair3s
             println(ts(e))
         end
     end
@@ -1203,6 +1217,7 @@ module TuSacManager
         println(WF)
         println(WF,ts(illPairs[player]))
         println(WF,ts(illSuits[player]))
+        println(WF,ts(pair3s[player]))
     end
 
 
@@ -4507,7 +4522,6 @@ function doNW()
             end
         end
         global timeout = sum > 0 ? timeOutArray[sum] : 20
-        println("SUM=",(sum,timeout))
 
         if i != 0
             conn = accept(server)
