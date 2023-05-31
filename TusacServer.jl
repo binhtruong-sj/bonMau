@@ -4532,7 +4532,7 @@ function doMain()
         end
     end
 end
-timeOutArray = [36*60*60,5*60,5*60,5*60]
+timeOutArray = [4*60,4*60,4*60,4*60]
 sendName = [false,false,false,false]
 playerName = ["Robo","Robo","Robo","Robo"]
 
