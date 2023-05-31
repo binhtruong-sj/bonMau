@@ -4354,9 +4354,12 @@ pots = [0,0,0,0]
 tempP = [0,0,0,0]
 
 function doMain()
+    global promptData = "P"
+
     while true
         global gameOver,pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck,socketCMD,
         atPlayer, playaCard, prevWinner, playersType, playersTypeLive, playersInGame
+      
         gameReady = false
         TuSacManager.init()
         TuSacManager.doShuffle(10)
@@ -4559,10 +4562,7 @@ function doNW()
             clientId = i
             readData[i] = ""
             writeData[i] = " "
-            if playersTypeLive == [0,0,0,0]
-                pots = [0,0,0,0]
-                playersPayout = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
-            end
+           
             playersSocket[i] = conn
             playersTypeLive[i] = PTsocket
             playersPayout[i] = [0,0,0,0]
@@ -4636,12 +4636,16 @@ function networkLoop(myId,myConn)
                     end
                 end
                 println("Name,",astr)
-                println(myConn,"Name,",astr)
                 sendName[myId] = false
-                line = readline(myConn)
-                if line != "AckName"
+                t = Timer(_ -> close(myConn), 60)
+                try
+                    println(myConn,"Name,",astr)
+                    line = readline(myConn)
+                catch e
                     cleanup(myId)
                     return
+                finally
+                    close(t)
                 end
             end
             ftimeout = condi ? timeout : 60
@@ -4680,7 +4684,16 @@ function networkLoop(myId,myConn)
                 close(t)
             end
         end
-        line = readline(myConn)
+
+        t = Timer(_ -> close(myConn), timeout)
+        try
+            line = readline(myConn)
+        catch e
+            cleanup(myId)
+            return
+        finally
+            close(t)
+        end
         okToPrint(0x80) && println(myId," ",line)
         readData[myId] = "+"
     end
