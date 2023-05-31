@@ -4147,13 +4147,13 @@ prevPlayer(p) = p == 1 ? 4 : p - 1
 saveStr = ""
 writeCnt = [0,0,0,0]
 
-function checkWrite(i,str)
+function checkWrite!(i,str,killPlayer)
     global writeData,writeCnt
     saveStr = ""
     while writeData[i] != "" || writeCnt[i] > 0
         astr = string("Wait for WritData $i to be empty, WriteData= ",writeData[i]," ready =",
         TuSacManager.gameReady," writeCnt=",writeCnt[i])
-        filterprintln(i,astr,saveStr)
+        filterprintln!(i,astr,saveStr,killPlayer)
     end
    okToPrint(0x80) && println("APL: send $i \"$str\"")
     writeData[i] = str
@@ -4163,14 +4163,18 @@ end
 killPlayer = [false,false,false,false]
 saveStrCnt = [0,0,0,0]
 saveStrC = "|/-\\"
-function filterprintln(player,str,saveStr)
+function filterprintln!(player,str,saveStr,killPlayer)
     global saveStr,saveStrCnt
     if str != saveStr 
         saveStrCnt[player] = 0
         saveStr = str
         println(str)
     else
-        if saveStrCnt[player] > 3*60
+        if saveStrCnt[player] % 60 == 0
+            println(str)
+        end
+        if saveStrCnt[player] > 5*60
+            println("Try to kill $player")
             killPlayer[player] = true
             saveStrCnt[player] = 0
         end
@@ -4185,20 +4189,20 @@ end
 
 
 function sendToSocket(player,astr)
-    global writeData,writeCnt   
-    checkWrite(player,astr)
+    global writeData,writeCnt,killPlayer
+    checkWrite!(player,astr,killPlayer)
 end
 
 function sendToSocket(player,activePlayer,playaCard,activeCard, aiCMD,wsCMD)
-    global writeData,writeCnt
+    global writeData,writeCnt,killPlayer
     astr = string(playaCard,",",activePlayer,",",ts(activeCard),",",wsCMD,",",ts(aiCMD),",")
-    checkWrite(player,astr)
+    checkWrite!(player,astr,killPlayer)
 end
 
 function waitForSocket(player)
-    global writeData, readData,writeCnt,vHand
+    global writeData, readData,writeCnt,vHand,killPlayer
     while(length(readData[player]) == 0)
-        okToPrint(0x80) && filterprintln(player,"waiting for read data $player",saveStr)
+        okToPrint(0x80) && filterprintln!(player,"waiting for read data $player",saveStr,killPlayer)
     end
     if readData[player] == "+" || readData[player] == "="
         okToPrint(0x80) && println("APL: $player read \"+\"")
@@ -4223,10 +4227,10 @@ function strToCards(hand, astr)
     return ignore
 end
 function waitForSocket(player,aiCMD,wsCMD)
-    global writeData, readData,writeCnt, vHand
+    global writeData, readData,writeCnt, vHand,killPlayer
     
     while(length(readData[player]) == 0)
-        okToPrint(0x80) && filterprintln(player,"waiting for read data $player",saveStr)
+        okToPrint(0x80) && filterprintln!(player,"waiting for read data $player",saveStr,killPlayer)
     end
     line = readData[player]
     readData[player] = ""
@@ -4270,6 +4274,11 @@ playersTypeDelay = [PTai,PTai,PTai,PTai]
 playersInGame = [PTai,PTai,PTai,PTai]
 playersPayout = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
 i = 0
+
+timeout = 10
+pots = [0,0,0,0]
+tempP = [0,0,0,0]
+killPlayer = [false,false,false,false]
 
 gameDeck = TuSacCards.ordered_deck()
 all_hands = []
@@ -4349,16 +4358,12 @@ function prompt()
     end
 end
 
-timeout = 10
-pots = [0,0,0,0]
-tempP = [0,0,0,0]
-
 function doMain()
     global promptData = "P"
 
     while true
         global gameOver,pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck,socketCMD,
-        atPlayer, playaCard, prevWinner, playersType, playersTypeLive, playersInGame
+        atPlayer, playaCard, prevWinner, playersType, playersTypeLive, playersInGame,killPlayer
       
         gameReady = false
         TuSacManager.init()
@@ -4570,10 +4575,12 @@ function doNW()
             kpoints[i] = 0
             loopCnt[i] = 0
             writeCnt[i] = 1
+            killPlayer[i] = false
+
             while playersType[i] != PTsocket
                 sleep(.4)
             end
-            @spawn networkLoop(clientId,conn)
+             @spawn networkLoop(clientId,conn)
         else
             sleep(3)
         end
@@ -4602,6 +4609,11 @@ function networkLoop(myId,myConn)
         gameOver = false
         writeData[myId] = " "
         while TuSacManager.gameReady == false
+            if killPlayer[myId]
+                println("Killed")
+                cleanup(myId)
+                return
+            end
             sleep(.5)
         end
         try
@@ -4617,6 +4629,12 @@ function networkLoop(myId,myConn)
                 loopCnt,sendName,playerName,timeout
         
             while length(writeData[myId]) == 0 
+                if killPlayer[myId]
+                    println("Killed")
+
+                    cleanup(myId)
+                    return
+                end
                 sleep(1)
             end
             condi =  (writeData[myId][1] == 't' || writeData[myId][1] == 'f')
@@ -4624,7 +4642,7 @@ function networkLoop(myId,myConn)
                 pName = ["","","",""]
                 for i in 1:4
                     payout = playersPayout[myId][i] - playersPayout[i][myId]
-                    pName[i] = string(playerName[i],i," A",aiTrait[i]," P",pots[i],"+",tempP[i]," \$",payout)
+                    pName[i] = string(playerName[i],i," A",aiTrait[i]," P",pots[i],"(",tempP[i],")  \$",payout)
                 end
                 astr = ""
                 for i in myId:4
@@ -4641,6 +4659,8 @@ function networkLoop(myId,myConn)
                 try
                     println(myConn,"Name,",astr)
                     line = readline(myConn)
+                    okToPrint(0x80) && println(myId," ",line)
+
                 catch e
                     cleanup(myId)
                     return
@@ -4688,19 +4708,21 @@ function networkLoop(myId,myConn)
         t = Timer(_ -> close(myConn), timeout)
         try
             line = readline(myConn)
+            okToPrint(0x80) && println(myId," ",line)
+
         catch e
             cleanup(myId)
             return
         finally
             close(t)
         end
-        okToPrint(0x80) && println(myId," ",line)
         readData[myId] = "+"
     end
 end
-@spawn doMain()
+@spawn doNW()
 
- doNW()
+doMain()
+
 
 
 
