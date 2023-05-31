@@ -4147,13 +4147,13 @@ prevPlayer(p) = p == 1 ? 4 : p - 1
 saveStr = ""
 writeCnt = [0,0,0,0]
 
-function checkWrite!(i,str,killPlayer)
+function checkWrite(i,str)
     global writeData,writeCnt
     saveStr = ""
     while writeData[i] != "" || writeCnt[i] > 0
         astr = string("Wait for WritData $i to be empty, WriteData= ",writeData[i]," ready =",
         TuSacManager.gameReady," writeCnt=",writeCnt[i])
-        filterprintln!(i,astr,saveStr,killPlayer)
+        filterprintln(i,astr,saveStr)
     end
    okToPrint(0x80) && println("APL: send $i \"$str\"")
     writeData[i] = str
@@ -4163,8 +4163,8 @@ end
 killPlayer = [false,false,false,false]
 saveStrCnt = [0,0,0,0]
 saveStrC = "|/-\\"
-function filterprintln!(player,str,saveStr,killPlayer)
-    global saveStr,saveStrCnt
+function filterprintln(player,str,saveStr)
+    global saveStr,saveStrCnt,killPlayer
     if str != saveStr 
         saveStrCnt[player] = 0
         saveStr = str
@@ -4189,20 +4189,20 @@ end
 
 
 function sendToSocket(player,astr)
-    global writeData,writeCnt,killPlayer
-    checkWrite!(player,astr,killPlayer)
+    global writeData,writeCnt   
+    checkWrite(player,astr)
 end
 
 function sendToSocket(player,activePlayer,playaCard,activeCard, aiCMD,wsCMD)
-    global writeData,writeCnt,killPlayer
+    global writeData,writeCnt
     astr = string(playaCard,",",activePlayer,",",ts(activeCard),",",wsCMD,",",ts(aiCMD),",")
-    checkWrite!(player,astr,killPlayer)
+    checkWrite(player,astr)
 end
 
 function waitForSocket(player)
-    global writeData, readData,writeCnt,vHand,killPlayer
+    global writeData, readData,writeCnt,vHand
     while(length(readData[player]) == 0)
-        okToPrint(0x80) && filterprintln!(player,"waiting for read data $player",saveStr,killPlayer)
+        okToPrint(0x80) && filterprintln(player,"waiting for read data $player",saveStr)
     end
     if readData[player] == "+" || readData[player] == "="
         okToPrint(0x80) && println("APL: $player read \"+\"")
@@ -4227,10 +4227,10 @@ function strToCards(hand, astr)
     return ignore
 end
 function waitForSocket(player,aiCMD,wsCMD)
-    global writeData, readData,writeCnt, vHand,killPlayer
+    global writeData, readData,writeCnt, vHand
     
     while(length(readData[player]) == 0)
-        okToPrint(0x80) && filterprintln!(player,"waiting for read data $player",saveStr,killPlayer)
+        okToPrint(0x80) && filterprintln(player,"waiting for read data $player",saveStr)
     end
     line = readData[player]
     readData[player] = ""
@@ -4274,11 +4274,6 @@ playersTypeDelay = [PTai,PTai,PTai,PTai]
 playersInGame = [PTai,PTai,PTai,PTai]
 playersPayout = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
 i = 0
-
-timeout = 10
-pots = [0,0,0,0]
-tempP = [0,0,0,0]
-killPlayer = [false,false,false,false]
 
 gameDeck = TuSacCards.ordered_deck()
 all_hands = []
@@ -4358,12 +4353,15 @@ function prompt()
     end
 end
 
+pots = [0,0,0,0]
+tempP = [0,0,0,0]
+killPlayer = [false,false,false,false]
 function doMain()
     global promptData = "P"
 
     while true
         global gameOver,pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck,socketCMD,
-        atPlayer, playaCard, prevWinner, playersType, playersTypeLive, playersInGame,killPlayer
+        atPlayer, playaCard, prevWinner, playersType, playersTypeLive, playersInGame
       
         gameReady = false
         TuSacManager.init()
@@ -4524,7 +4522,7 @@ function doMain()
             for i in 1:4
                 (playersType[i] == PTsocket) && waitForSocket(i)
             end
-            println(playersType,playersTypeLive,pots," TimeOut:",timeout)
+            println(playersType,playersTypeLive,pots)
             TuSacManager.printTable()
 
             prompt()
@@ -4532,7 +4530,6 @@ function doMain()
         end
     end
 end
-timeOutArray = [4*60,4*60,4*60,4*60]
 sendName = [false,false,false,false]
 playerName = ["Robo","Robo","Robo","Robo"]
 
@@ -4542,16 +4539,12 @@ function doNW()
         global readyToRead,writeData,readData,playersType,playersTypeLive,
         playersTypeDelay,playerName,sendName
         i = 0
-        sum = playersType[1] + playersType[2] + playersType[3] + playersType[4] 
-     
         for j in 1:4
             if playersTypeLive[j] + playersTypeDelay[j] == PTai
                 i = j
                 break
             end
         end
-        global timeout = sum > 0 ? timeOutArray[sum] : 20
-
         if i != 0
             conn = accept(server)
             okToPrint(0x80) && println("Accepted: ",i," writeData=",writeData[i]," readData=",readData[i], " writeCnt=",writeCnt[i])
@@ -4580,7 +4573,7 @@ function doNW()
             while playersType[i] != PTsocket
                 sleep(.4)
             end
-             @spawn networkLoop(clientId,conn)
+              @spawn networkLoop(clientId,conn)
         else
             sleep(3)
         end
@@ -4588,7 +4581,13 @@ function doNW()
     end
 end
 
+function chkcleanup(myID)
+    sum(playersTypeLive) > 1 && cleanup(myID)
+    println("--------------------Trigger ------------")
+end
+
 function cleanup(myID)
+    close(playersSocket[myID])
     global readData[myID] = "="
     global writeData[myID] = ""
     global playerName[myID] = string("Robo ")
@@ -4600,7 +4599,41 @@ function cleanup(myID)
     println("Player $myID disconnected")
     return
 end
+function sendNewName(myId,myConn)
+    if sendName[myId] == true &&  (writeData[myId][1] == 't' || writeData[myId][1] == 'f')
+        pName = ["","","",""]
+        for i in 1:4
+            payout = playersPayout[myId][i] - playersPayout[i][myId]
+            pName[i] = string(playerName[i],i," A",aiTrait[i]," P",pots[i],"(",tempP[i],")  \$",payout)
+        end
+        astr = ""
+        for i in myId:4
+            astr = string(astr,pName[i],",")
+        end
+        if myId > 1
+            for i in 1:myId-1
+                astr = string(astr,pName[i],",")
+            end
+        end
+        println("Name,",astr)
+        sendName[myId] = false
+        t = Timer(_ -> chkcleanup(myId), 30)
+        try
+            println(myConn,"Name,",astr)
+            line = readline(myConn)
+            okToPrint(0x80) && println(myId," ",line)
+
+        catch e
+            cleanup(myId)
+            return
+        finally
+            close(t)
+        end
+    end
+end
+
 function networkLoop(myId,myConn)
+    ftimeout = 5*60
     saveStr = ""
     saveStr1 = ["","","",""]
     while true
@@ -4637,43 +4670,12 @@ function networkLoop(myId,myConn)
                 end
                 sleep(1)
             end
-            condi =  (writeData[myId][1] == 't' || writeData[myId][1] == 'f')
-            if sendName[myId] == true && condi
-                pName = ["","","",""]
-                for i in 1:4
-                    payout = playersPayout[myId][i] - playersPayout[i][myId]
-                    pName[i] = string(playerName[i],i," A",aiTrait[i]," P",pots[i],"(",tempP[i],")  \$",payout)
-                end
-                astr = ""
-                for i in myId:4
-                    astr = string(astr,pName[i],",")
-                end
-                if myId > 1
-                    for i in 1:myId-1
-                        astr = string(astr,pName[i],",")
-                    end
-                end
-                println("Name,",astr)
-                sendName[myId] = false
-                t = Timer(_ -> close(myConn), 60)
-                try
-                    println(myConn,"Name,",astr)
-                    line = readline(myConn)
-                    okToPrint(0x80) && println(myId," ",line)
-
-                catch e
-                    cleanup(myId)
-                    return
-                finally
-                    close(t)
-                end
-            end
-            ftimeout = condi ? timeout : 60
+            sendNewName(myId,myConn)
 
             line = writeData[myId]
             writeData[myId] = ""
             gameOver = line[1] == 'g'
-            t = Timer(_ -> close(myConn), ftimeout)
+            t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
 
             try
                 println(myConn,line)
@@ -4684,7 +4686,7 @@ function networkLoop(myId,myConn)
                 close(t)
             end
             okToPrint(0x80) && println("NWL: send to $myId ",line)
-            t = Timer(_ -> close(myConn), ftimeout)
+            t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
 
             try
                 line =  readline(myConn)
@@ -4705,11 +4707,10 @@ function networkLoop(myId,myConn)
             end
         end
 
-        t = Timer(_ -> close(myConn), timeout)
+        t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
         try
             line = readline(myConn)
             okToPrint(0x80) && println(myId," ",line)
-
         catch e
             cleanup(myId)
             return
@@ -4720,8 +4721,9 @@ function networkLoop(myId,myConn)
     end
 end
 @spawn doNW()
-
 doMain()
+
+
 
 
 
