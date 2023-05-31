@@ -4559,7 +4559,10 @@ function doNW()
             clientId = i
             readData[i] = ""
             writeData[i] = " "
-
+            if playersTypeLive == [0,0,0,0]
+                pots = [0,0,0,0]
+                playersPayout = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
+            end
             playersSocket[i] = conn
             playersTypeLive[i] = PTsocket
             playersPayout[i] = [0,0,0,0]
