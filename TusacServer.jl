@@ -1195,6 +1195,69 @@ module TuSacManager
          
     end
 
+
+    function strTable(player)
+        # checksum()
+        rstr = ""
+            for i in player:4
+                ah = vPlayerHand[i]
+                rstr = string(rstr,ts(ah),"\n")
+            end
+            if player > 1
+                for i in 1:player-1
+                    ah = vPlayerHand[i]
+                    rstr = string(rstr,ts(ah),"\n")
+                end
+            end
+
+            for i in player:4
+                ah = vPlayerDiscard[i]
+                rstr = string(rstr,ts(ah),"\n")
+            end
+            if player > 1
+                for i in 1:player-1
+                    ah = vPlayerDiscard[i]
+                    rstr = string(rstr,ts(ah),"\n")
+                end
+            end
+
+            for i in player:4
+                ah = vPlayerAsset[i]
+                rstr = string(rstr,ts(ah),"\n")
+            end
+            if player > 1
+                for i in 1:player-1
+                    ah = vPlayerAsset[i]
+                    rstr = string(rstr,ts(ah),"\n")
+                end
+            end
+            rstr = string(rstr,ts(vGameDeck),"\n")
+            return rstr
+    end
+
+    function strCoins(player)
+        rstr = ""
+        for i in player:4
+            for c in coinsArr[i]
+                rstr = string(rstr,",",c)
+            end
+        end
+        if player > 1
+            for i in 1:player-1
+                for c in coinsArr[i]
+                    rstr = string(rstr,",",c)
+                end
+            end
+        end
+        rstr = string(rstr,"\n")
+
+        illPair,illSuit,pair3 = illegalScan(player)
+        rstr = string(rstr,ts(illPair),"\n")
+        rstr = string(rstr,ts(illSuit),"\n")
+        rstr = string(rstr,ts(pair3),"\n")
+        return rstr
+    end
+
     function printCoins(WF,player)
         for i in player:4
             for c in coinsArr[i]
@@ -1675,7 +1738,7 @@ module TuSacManager
             end
         end
         np = mappingPlayer(p,np)
-        astr = gameOver ? string("gameOver $np,") : string("cont $np,")
+        astr = gameOver ? string("MOVE,gameOver $np,") : string("MOVE,cont $np,")
       
         for ar in tArray
             astr = astr*string(mappingPlayer(p,ar[1])," ",mappingPlayer(p,ar[2])," ",ts(ar[3]),",")
@@ -4532,7 +4595,7 @@ function doMain()
 end
 sendName = [false,false,false,false]
 playerName = ["Robo","Robo","Robo","Robo"]
-
+cleanupCnt = [0,0,0,0]
 function doNW()
     while true
         global i
@@ -4553,9 +4616,7 @@ function doNW()
                 println(" just update remote ... restarting connection ")
                 continue
             end
-            println(conn,i)
             global playerRootName[i] = playerName[i]
-
             sendName = [true,true,true,true]
             clientId = i
             readData[i] = ""
@@ -4569,11 +4630,14 @@ function doNW()
             loopCnt[i] = 0
             writeCnt[i] = 1
             killPlayer[i] = false
+            astr = string(i,"\n")
+            print(conn,astr)
+            line = readline(conn)
 
             while playersType[i] != PTsocket
                 sleep(.4)
             end
-              @spawn networkLoop(clientId,conn)
+            @spawn networkLoop(clientId,conn)
         else
             sleep(3)
         end
@@ -4582,7 +4646,8 @@ function doNW()
 end
 
 function chkcleanup(myID)
-    sum(playersTypeLive) > 1 && cleanup(myID)
+    cleanupCnt[myID] += 1
+    (sum(playersTypeLive) > 1) && (cleanupCnt[myID] > 4) && cleanup(myID)
     println("--------------------Trigger ------------")
 end
 
@@ -4615,11 +4680,13 @@ function sendNewName(myId,myConn)
                 astr = string(astr,pName[i],",")
             end
         end
-        println("Name,",astr)
+        astr = string("Name,",astr,"\n")
+        print(astr)
         sendName[myId] = false
+        cleanupCnt[myId] = 0
         t = Timer(_ -> chkcleanup(myId), 30)
         try
-            println(myConn,"Name,",astr)
+            print(myConn,astr)
             line = readline(myConn)
             okToPrint(0x80) && println(myId," ",line)
 
@@ -4633,7 +4700,7 @@ function sendNewName(myId,myConn)
 end
 
 function networkLoop(myId,myConn)
-    ftimeout = 5*60
+    ftimeout = 30
     saveStr = ""
     saveStr1 = ["","","",""]
     while true
@@ -4649,12 +4716,16 @@ function networkLoop(myId,myConn)
             end
             sleep(.5)
         end
+        astr = TuSacManager.strTable(myId)
+        astr = string(astr,TuSacManager.strCoins(myId))
+        print(astr)
         try
-            TuSacManager.printTable(myConn,myId)
-            TuSacManager.printCoins(myConn,myId)
-        catch
+            print(myConn,astr)
+            line = readline(myConn)
+        catch e
             return
         end
+
         writeData[myId] = ""
         writeCnt[myId] = 0
         while !gameOver
@@ -4672,13 +4743,14 @@ function networkLoop(myId,myConn)
             end
             sendNewName(myId,myConn)
 
-            line = writeData[myId]
+            line = string(writeData[myId],"\n")
             writeData[myId] = ""
-            gameOver = line[1] == 'g'
+            gameOver = line[6] == 'g'
+            cleanupCnt[myId] = 0
             t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
 
             try
-                println(myConn,line)
+                print(myConn,line)
             catch 
                 cleanup(myId)
                 return
@@ -4686,6 +4758,7 @@ function networkLoop(myId,myConn)
                 close(t)
             end
             okToPrint(0x80) && println("NWL: send to $myId ",line)
+            cleanupCnt[myId] = 0
             t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
 
             try
@@ -4706,7 +4779,7 @@ function networkLoop(myId,myConn)
                 close(t)
             end
         end
-
+        cleanupCnt[myId] = 0
         t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
         try
             line = readline(myConn)
@@ -4722,14 +4795,3 @@ function networkLoop(myId,myConn)
 end
 @spawn doNW()
 doMain()
-
-
-
-
-
-
-
-
-
-
-

@@ -4336,7 +4336,9 @@ global nwMaster = clientSetup(serverURL,serverPort)
 playerName = "player"
 println(nwMaster,playerName)
 pn =readline(nwMaster)
+
 playerNum = parse(Int,pn)
+println(nwMaster,playerNum)
 playerName = string(playerName,playerNum)
 println("NAME=",playerName)
 gameOn = true
@@ -4354,8 +4356,9 @@ function doMain()
         illegalPair  = readline(nwMaster)
         illegalSuit  = readline(nwMaster)
         pair3s  = readline(nwMaster)
-
         println("illegal:",illegalPair,"-",illegalSuit," pair3s=",pair3s)
+
+        println(nwMaster,"Ack")
 
         gameOver = false
         areply = areply == "A" ? "" : areply
@@ -4376,11 +4379,11 @@ function doMain()
             println(nwMaster,reply)
         
             moveStr = readline(nwMaster)
-            gameOver = moveStr[1] == 'g'
+            gameOver = moveStr[6] == 'g'
             println(nwMaster,"+")
             println("mv array ",moveStr)
             mvArr = split(moveStr,",")
-            for i in 2:lastindex(mvArr) -1
+            for i in 3:lastindex(mvArr) -1
                 f = split(mvArr[i]," ")
                 TuSacManager.moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
             end

@@ -1,4 +1,4 @@
-version = "0.A01"
+version = "0.A04"
 using GameZero
 using Sockets
 using Random: randperm
@@ -23,7 +23,8 @@ const bRANDOM = 1
 const bProbability = 2
 const bMax = 3
 const bAI = 4
-autoMode = 0
+autoMode = false
+autoMode1 = false
 function setPlayerName(root,trait)
     n = ["","","",""]
     for i in 1:4
@@ -3156,11 +3157,11 @@ function config(fn)
                 println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
             elseif lcCmp(keyword,"server")
                 serverURL = string(rl[2])
-                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+                serverPort = 11031
                 println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
             elseif lcCmp(keyword,"myIP")
                 serverIP = getaddrinfo(string(rl[2]))
-                length(rl) > 2 && (serverPort = parse(Int,rl[3]))
+                serverPort = 11031
                 println("serverURL=",serverURL," serverIP=",serverIP," port=",serverPort)
             elseif lcCmp(keyword,"gamew")
                 gamew = parse(Int,rl[2])
@@ -5181,7 +5182,7 @@ function gamePlay1Iteration()
         global GUI_ready, GUI_array, humanIsGUI,rQ, rReady
         if playerIsHuman(player)
             if humanIsGUI()
-                if autoMode > 0
+                if autoMode || autoMode1
                     println(remoteMaster,"=")
                     rReady[player] = true
                     rQ[player] = rmNewCard
@@ -5204,10 +5205,15 @@ function gamePlay1Iteration()
                             global bbox1 = false
                             return false
                         else
-                            if length(GUI_array)==0
-                                println(remoteMaster,".")
-                            else
-                                println(remoteMaster,ts(GUI_array))
+                            try
+                                if length(GUI_array)==0
+                                    println(remoteMaster,".")
+                                else
+                                    println(remoteMaster,ts(GUI_array))
+                                end
+                            catch e
+                                close(remoteMaster)
+                                exit()
                             end
                             if okToPrint(0x80)
                                 print("Human-p: ", player," PlayCard = ")
@@ -5508,11 +5514,11 @@ function gamePlay1Iteration()
         
         okToPrint(0x90) && println("REMOTE MSG, Move array:",moveStr)
         mvArr = split(moveStr,",")
-        for i in 2:lastindex(mvArr) -1
+        for i in 3:lastindex(mvArr) -1
             f = split(mvArr[i]," ")
             moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
         end
-        astr = split(mvArr[1]," ")
+        astr = split(mvArr[2]," ")
         nPlayer = parse(Int,astr[2])
         global currentPlayer = nPlayer
         if astr[1] == "gameOver" 
@@ -5717,6 +5723,7 @@ function thinNetworkInit()
     playerName = myNAME
     println(remoteMaster,playerName)
     global playerNum =readline(remoteMaster)
+    println(remoteMaster,playerNum)
     global playerName = string(playerName,playerNum)
     global gameOn = true
 end  
@@ -5987,7 +5994,7 @@ function gsStateMachine(gameActions)
     global playerA_discards,playerB_discards,playerC_discards,playerD_discards
     global playerA_assets,playerB_assets,playerC_assets,playerD_assets,khapMatDau
     global kpoints,khui,myPlayer,loadPlayer,isTestFile,tstMoveArray,PlayedCardCnt, points
-    global illegalPairs,illegalSuits,pair3s,autoMode
+    global illegalPairs,illegalSuits,pair3s,autoMode,autoMode1
 
     prevIter = 0
     if tusacState == tsSinitial
@@ -6082,13 +6089,12 @@ function gsStateMachine(gameActions)
                 println("\nDealing is completed,prevWinner=",prevWinner)
             end
             TuSacManager.init()
-            if autoMode == 1
-                global autoMode = 0
-            end
+            autoMode1 = false
             global FaceDown = true
             TuSacManager.readServerTable(remoteMaster)
             coinsArr = TuSacManager.readRFCoins(remoteMaster)
             illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
+            println(remoteMaster,"Ack")
             if okToPrint(0x90)
                 println("Ill_pairs ",ts(illegalPairs))
                 println("Ill_suits ",ts(illegalSuits))
@@ -6888,11 +6894,11 @@ function on_key_down(g)
                 nameSynced = false
             end
         elseif g.keyboard.A
-            println("A")
-            global autoMode = 2 
+            println("A = ",autoMode)
+            global autoMode = !autoMode
         elseif g.keyboard.G
-            println("g")
-            global autoMode = 1
+            println("G = ",autoMode1)
+            global autoMode1 = !autoMode1
         end
 
         if tusacState == tsSdealCards && g.keyboard.enter
@@ -7259,7 +7265,13 @@ function checkForRestart()
                 end
             end
         else
-            println(remoteMaster,"Restart")
+            try
+                println(remoteMaster,"Restart")
+            catch e
+                close(remoteMaster)
+                exit()
+            end
+
             gsStateMachine(gsRestart)
 
         end
