@@ -32,7 +32,7 @@ end
 cFlag = true
 gameTrashCnt = gameTrashCntLatest = zeros(Int8,4)
 gameEnd = 1
-
+noPlayerTimeOut =60*60*24
 coinsCnt = 0
 coinsArr = [[0,0],[0,0],[0,0],[0,0]]
 wantFaceDown = true
@@ -1090,7 +1090,7 @@ module TuSacManager
                             end
                         end
                     end
-                    if found == false
+                    if found == false && !is_c(p[1])
                         push!(illegal,p[1])
                     end
                 end
@@ -4223,11 +4223,10 @@ function checkWrite(i,str)
     writeCnt[i] += 1
 end
 
-killPlayer = [false,false,false,false]
 saveStrCnt = [0,0,0,0]
 saveStrC = "|/-\\"
 function filterprintln(player,str,saveStr)
-    global saveStr,saveStrCnt,killPlayer
+    global saveStr,saveStrCnt
     if str != saveStr 
         saveStrCnt[player] = 0
         saveStr = str
@@ -4237,8 +4236,6 @@ function filterprintln(player,str,saveStr)
             println(str)
         end
         if saveStrCnt[player] > 5*60
-            println("Try to kill $player")
-            killPlayer[player] = true
             saveStrCnt[player] = 0
         end
         saveStrCnt[player] += 1
@@ -4336,6 +4333,7 @@ playersTypeLive = [PTai,PTai,PTai,PTai]
 playersTypeDelay = [PTai,PTai,PTai,PTai]
 playersInGame = [PTai,PTai,PTai,PTai]
 playersPayout = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]
+prevPlayersRootName = ["","","",""]
 i = 0
 
 gameDeck = TuSacCards.ordered_deck()
@@ -4418,7 +4416,6 @@ end
 
 pots = [0,0,0,0]
 tempP = [0,0,0,0]
-killPlayer = [false,false,false,false]
 function doMain()
     global promptData = "P"
 
@@ -4463,8 +4460,12 @@ function doMain()
 
         while !gameOver
             global gameOver, playersReply
-            if playersType == [0,0,0,0]
-                sleep(5)
+            for i in 1:noPlayerTimeOut/2
+                if playersTypeLive == [0,0,0,0]
+                    sleep(2)
+                else
+                    break
+                end
             end
             playersType = deepcopy(playersTypeLive)
             pcards = []
@@ -4611,11 +4612,23 @@ function doNW()
         if i != 0
             conn = accept(server)
             okToPrint(0x80) && println("Accepted: ",i," writeData=",writeData[i]," readData=",readData[i], " writeCnt=",writeCnt[i])
-            playerName[i] = checkNupdate(i,myversion,conn)   
-            if playerName[i] == ""
+            newName = checkNupdate(i,myversion,conn)  
+            if newName == ""
                 println(" just update remote ... restarting connection ")
                 continue
             end
+            println("data= ",playersType,playersTypeLive)
+            nameFound = false
+            for j in 1:4
+                if (prevPlayersRootName[j] == newName) && (playersTypeLive[j] == PTai)
+                    i = j
+                    nameFound = true
+                    break
+                end
+            end
+            playerName[i] = newName
+            prevPlayersRootName[i] = playerName[i]
+           
             global playerRootName[i] = playerName[i]
             sendName = [true,true,true,true]
             clientId = i
@@ -4624,12 +4637,13 @@ function doNW()
            
             playersSocket[i] = conn
             playersTypeLive[i] = PTsocket
-            playersPayout[i] = [0,0,0,0]
-            pots[i] = 0
-            kpoints[i] = 0
+            if nameFound == false 
+                playersPayout[i] = [0,0,0,0]
+                pots[i] = 0
+                kpoints[i] = 0
+            end
             loopCnt[i] = 0
             writeCnt[i] = 1
-            killPlayer[i] = false
             astr = string(i,"\n")
             print(conn,astr)
             line = readline(conn)
@@ -4647,8 +4661,9 @@ end
 
 function chkcleanup(myID)
     cleanupCnt[myID] += 1
-    (sum(playersTypeLive) > 1) && (cleanupCnt[myID] > 4) && cleanup(myID)
-    println("--------------------Trigger ------------")
+    playersCount = sum(playersTypeLive) 
+    playersCount > 1 && (cleanupCnt[myID] % 8 == 0) && println(" ---Trigger --------------------Cnt = ", cleanupCnt[myID])
+    (playersCount > 1) && (cleanupCnt[myID] > 12) && cleanup(myID)
 end
 
 function cleanup(myID)
@@ -4669,7 +4684,7 @@ function sendNewName(myId,myConn)
         pName = ["","","",""]
         for i in 1:4
             payout = playersPayout[myId][i] - playersPayout[i][myId]
-            pName[i] = string(playerName[i],i," A",aiTrait[i]," P",pots[i],"(",tempP[i],")  \$",payout)
+            pName[i] = string(playerName[i],"=",pots[i],"_",tempP[i],"_",payout)
         end
         astr = ""
         for i in myId:4
@@ -4700,7 +4715,7 @@ function sendNewName(myId,myConn)
 end
 
 function networkLoop(myId,myConn)
-    ftimeout = 30
+    ftimeout = 15
     saveStr = ""
     saveStr1 = ["","","",""]
     while true
@@ -4709,21 +4724,21 @@ function networkLoop(myId,myConn)
         gameOver = false
         writeData[myId] = " "
         while TuSacManager.gameReady == false
-            if killPlayer[myId]
-                println("Killed")
-                cleanup(myId)
-                return
-            end
             sleep(.5)
         end
         astr = TuSacManager.strTable(myId)
         astr = string(astr,TuSacManager.strCoins(myId))
         print(astr)
+        t = Timer(_ -> chkcleanup(myId), ftimeout, interval = ftimeout)
+
         try
             print(myConn,astr)
             line = readline(myConn)
         catch e
+            cleanup(myId)
             return
+        finally
+            close(t)
         end
 
         writeData[myId] = ""
@@ -4733,12 +4748,6 @@ function networkLoop(myId,myConn)
                 loopCnt,sendName,playerName,timeout
         
             while length(writeData[myId]) == 0 
-                if killPlayer[myId]
-                    println("Killed")
-
-                    cleanup(myId)
-                    return
-                end
                 sleep(1)
             end
             sendNewName(myId,myConn)

@@ -1,4 +1,4 @@
-version = "0.A04"
+version = "0.A0a"
 using GameZero
 using Sockets
 using Random: randperm
@@ -5124,7 +5124,7 @@ function gamePlay1Iteration()
         return true
     end
 
-    function checkResponse(r,e,p,cmd)
+    function checkOKResponse(r,e,p,cmd)
         global bodoiCnt,illegalPairs,illegalSuits
         println((r,e,cmd))
         c = split(e," ")
@@ -5165,8 +5165,7 @@ function gamePlay1Iteration()
                 print("bo-doi ",bodoiCnt)
                 bodoiCnt += 1
                 bodoiCnt < 2 && (return false)
-            elseif !chkSuit(p,r)
-                # print("notsuit ")
+            elseif length(r) != 0 && !chkSuit(p,r)
                 return false
             elseif ((length(r)!=3) || (!card_equal(r[1],r[2]) || !card_equal(r[2],r[3])) ) && TuSacCards.ifFindCard(pair3s,r) 
                 # using 1 of pair3 for not matching 3 -- 
@@ -5193,7 +5192,7 @@ function gamePlay1Iteration()
                         end
                         rReady[player] = true
                         rQ[player]=GUI_array
-                        ans = checkResponse(GUI_array,rmCmd[5],pcard,rmCmd[4])
+                        ans = checkOKResponse(GUI_array,rmCmd[5],pcard,rmCmd[4])
                         if ans == false
                             println("???")
                             rReady[player] = false
