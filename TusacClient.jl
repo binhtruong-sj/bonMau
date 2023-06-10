@@ -689,6 +689,7 @@ module TuSacCards
     end
     
     function removeCards!(hand, aline)
+        println("Line=",aline)
         grank = "Tstcxpm"
         gcolor = "TVDX"
         tohand = []
@@ -4338,6 +4339,7 @@ println(nwMaster,playerName)
 pn =readline(nwMaster)
 
 playerNum = parse(Int,pn)
+println("playerNum=",playerNum)
 println(nwMaster,playerNum)
 playerName = string(playerName,playerNum)
 println("NAME=",playerName)
