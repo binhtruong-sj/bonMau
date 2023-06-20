@@ -1,6 +1,6 @@
 cd $HOME
-rm -fr tu-sac-backup
-mv tu-sac tu-sac-backup
+rm -fr bonMau-backup
+mv bonMau bonMau-backup
 git clone https://github.com/binhtruong-sj/bonMau.git
 cd bonMau
 chmod +x n b update
