@@ -1,4 +1,4 @@
-version = "0.A0a"
+version = "0.A0b"
 using GameZero
 using Sockets
 using Random: randperm
@@ -121,6 +121,29 @@ a =cmpPoints(2,1,3)
 emBaiLimit = [a,a,a,a]
 println("Default Em-bai limit = ",emBaiLimit)
 channel = Channel(1)
+wrChannel = Channel(1)
+nwError = false
+
+function handleNetworkError()
+    global nwError = true
+    global networkSetup = false
+    while isready(channel)
+        take!(channel)
+    end
+end
+
+function nwWrite()
+    global remoteMaster,wrChannel
+    while true
+        try
+            wrline = take!(wrChannel)
+            println(remoteMaster,wrline)
+        catch e
+            close(remoteMaster)
+            handleNetworkError()
+        end
+    end
+end
 
 function nwRead()
     global networkSetup,remoteMaster,channel
@@ -129,11 +152,10 @@ function nwRead()
             try
                 l = readline(remoteMaster)
                 put!(channel, l)
-
             catch e
                 print("ERROR -- close connection ",e)
                 close(remoteMaster)
-                exit()
+                handleNetworkError()
             end
         else
             sleep(.1)
@@ -142,6 +164,7 @@ function nwRead()
 end
 
 @spawn nwRead()
+@spawn nwWrite()
 
 module nwAPI
     using Sockets
@@ -1139,7 +1162,7 @@ module TuSacManager
     function readRFCoins(RF)
         global coinsArr
         RFaline = readline(RF)
-        println("Coins: ",RFaline)
+        println("RLcoins: ",RFaline)
         RFp = split(RFaline,",")
         a = []
         for i in 2:lastindex(RFp)
@@ -1155,7 +1178,7 @@ module TuSacManager
     function takeRFCoins(RF)
         global coinsArr
         RFaline = take!(RF)
-        println("Coins: ",RFaline)
+        println("coins: ",RFaline)
         RFp = split(RFaline,",")
         a = []
         for i in 2:lastindex(RFp)
@@ -1421,7 +1444,7 @@ module TuSacManager
         playerHand  = []
         playerAsset = []
         playerDiscard  = []
-
+        println("TABLE:")
         push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
         push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
         push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
@@ -2580,7 +2603,6 @@ module TuSacManager
                     okToPrint(4) && println("Max-Array = ", (max[1][1],ts(max[1][2]) ),(max[2][1],ts(max[2][2])))
                     card = max[1][2]
             else
-                    println("SHOULD NOT BE HERE",aiType)
                     exit()
                     max = [[-1000,10],[-1000,10]]
                     processM1Card(max,miss1_1,player)
@@ -4074,11 +4096,14 @@ function thinNetworkInit()
     global remoteMaster = clientSetup(serverURL,serverPort)
     playerName = myNAME
     println(remoteMaster,playerName)
+    #put!(wrChannel,playerName)
     global playerNum =readline(remoteMaster)
     println(remoteMaster,playerNum)
+    #put!(wrChannel,playerNum)
     global playerName = string(playerName,playerNum)
     global gameOn = true
     global networkSetup = true
+
 end  
 """
     _ts(a)
@@ -5293,7 +5318,8 @@ function gamePlay1Iteration()
         if playerIsHuman(player)
             if humanIsGUI()
                 if autoMode || autoMode1
-                    println(remoteMaster,"=")
+                    #println(remoteMaster,"=")
+                    put!(wrChannel,"=")
                     rReady[player] = true
                     rQ[player] = rmNewCard
                 else
@@ -5317,9 +5343,11 @@ function gamePlay1Iteration()
                         else
                             try
                                 if length(GUI_array)==0
-                                    println(remoteMaster,".")
+                                    #println(remoteMaster,".")
+                                    put!(wrChannel,".")
                                 else
-                                    println(remoteMaster,ts(GUI_array))
+                                    #println(remoteMaster,ts(GUI_array))
+                                    put!(wrChannel,ts(GUI_array))
                                 end
                             catch e
                                 println("AAAAAAAAAAAAA")
@@ -5340,7 +5368,13 @@ function gamePlay1Iteration()
                         end
                     else
                         if isready(channel)
-                            rl = take!(channel)
+                            if networkSetup
+                                rl = take!(channel)
+                            else
+                                resetGAME()
+                                return true
+                            end
+                
                             if rl == "C"
                                 println("Keeping alive ",rl)
                             end
@@ -5415,9 +5449,7 @@ function gamePlay1Iteration()
             else
                 return
             end
-            if okToPrint(0x8)
-                    println((ts(cards[1]),UInt8(cards[1])))
-            end
+         
             isMaster = (PlayerList[myPlayer] != plSocket)
             if isMaster
                 if PlayerList[gpPlayer] == plSocket
@@ -5450,17 +5482,27 @@ function gamePlay1Iteration()
     
     if(rem(glIterationCnt,4) ==0)
        # global rdCmd = readline(remoteMaster)
-        global rdCmd = take!(channel)
+        if networkSetup
+            global rdCmd = take!(channel)
+        else
+            resetGAME()
+        end
         if rdCmd[1] == 'N'
             println(rdCmd)
             n = split(rdCmd,",")
             t =["","","",""]
             global playerRootName = n[2:5]
             setGUIname(setPlayerName(playerRootName,t))
-            println(remoteMaster,"AckName")
+            #println(remoteMaster,"AckName")
+            put!(wrChannel,"AckName")
             #global rdCmd = readline(remoteMaster)
-            global rdCmd = take!(channel)
-
+            if networkSetup
+                global rdCmd = take!(channel)
+            else
+                resetGAME()
+            end
+    
+   
         end
         okToPrint(0x80) && println("Receive remote cmd = ",rdCmd)
         global rmCmd = split(rdCmd,",")
@@ -5527,6 +5569,7 @@ function gamePlay1Iteration()
         global CardFromDeck = !glNeedaPlayCard
         if glNeedaPlayCard
             checkHumanResponse(glPrevPlayer,glNeedaPlayCard,0)
+            !networkSetup && return
             checkMaster(gpPlay1card,glPrevPlayer)
             if rReady[glPrevPlayer]
                 glNewCard = rQ[glPrevPlayer]
@@ -5625,7 +5668,8 @@ function gamePlay1Iteration()
         for i in  1:4
             if !(glNeedaPlayCard && (i == 4 ))
                 gotHumanInput = gotHumanInput && checkHumanResponse(aplayer,gpCheckMatch1or2,glNewCard)
-              
+                !networkSetup && return
+
             end
             aplayer = nextPlayer(aplayer)
         end
@@ -5638,9 +5682,16 @@ function gamePlay1Iteration()
             bbox1 = false
 
         # moveStr = readline(remoteMaster)
+        if networkSetup
             moveStr = take!(channel)
 
-            println(remoteMaster,"+")
+        else
+            resetGAME()
+        end
+
+
+            #println(remoteMaster,"+")
+            put!(wrChannel,"+")
             
             okToPrint(0x90) && println("REMOTE MSG, Move array:",moveStr)
             mvArr = split(moveStr,",")
@@ -6110,19 +6161,19 @@ function gsStateMachine(gameActions)
 # -------------------A
         global mode
         cardCnt = zeros(UInt8,32)
-
         if gameActions == gsSetupGame
             global numberOfSocketPlayer
             global mode
             haBai = false
             shuffled = false
-            if coldStart
-                if !noGUI()
-                    setGUIname(playerName)
+            if networkSetup == false
+                if coldStart
+                    if !noGUI()
+                        setGUIname(playerName)
+                    end
+                    gameDeck = TuSacCards.ordered_deck()
                 end
                 thinNetworkInit()
-
-                gameDeck = TuSacCards.ordered_deck()
             end
             if noGUI() == false
                 global FaceDown = wantFaceDown
@@ -6207,7 +6258,8 @@ function gsStateMachine(gameActions)
             coinsArr = TuSacManager.takeRFCoins(channel)
             #illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
             illegalPairs,illegalSuits,pair3s = TuSacManager.takeRF_Ills(channel)
-            println(remoteMaster,"Ack")
+            #println(remoteMaster,"Ack")
+            put!(wrChannel,"Ack")
             if okToPrint(0x90)
                 println("Ill_pairs ",ts(illegalPairs))
                 println("Ill_suits ",ts(illegalSuits))
@@ -6283,7 +6335,6 @@ function gsStateMachine(gameActions)
             kpoints = zeros(Int8,4)
             khui = [1,1,1,1]
             khapMatDau = zeros(4)
-            coldStart = false
             global FaceDown = wantFaceDown
             ActiveCard = 0
             saveI = 0
@@ -6330,6 +6381,12 @@ function gsStateMachine(gameActions)
                         end
                     end
                     gamePlay1Iteration()
+                    if !networkSetup
+                        openAllCard = true
+                        gameOver(5)
+                        updateBaiThuiPic(1)
+                        glIterationCnt += 50
+                    end
                     if rem(glIterationCnt,4) == 0
                         SNAPSHOT(atest)
                         moveArray = zeros(Int,16,3)
@@ -6880,7 +6937,6 @@ end
 function restartGame()
     global gameDeck,prevWinner,currentPlayer,HF,histFILENAME
     global FaceDown = false
-    global coldStart = false
     if histFile
         close(HF)
         global hfName = nextFileName(histFILENAME,chFilenameStr)
@@ -7072,6 +7128,7 @@ function on_key_down(g)
             end
     elseif tusacState == tsGameLoop
         if g.keyboard.R
+            global coldStart = false
             checkForRestart()
 
         elseif g.keyboard.X
@@ -7357,7 +7414,9 @@ end
 
 function checkForRestart()
     if isGameOver()
-        if numberOfSocketPlayer > 0
+        if !networkSetup
+            gsStateMachine(gsRestart)
+        elseif numberOfSocketPlayer > 0
             if isServer()
                 so = numberOfSocketPlayer
                 for p in 2:4
@@ -7379,7 +7438,8 @@ function checkForRestart()
             end
         else
             try
-                println(remoteMaster,"Restart")
+                #println(remoteMaster,"Restart")
+                put!(wrChannel,"Restart")
             catch e
                 close(remoteMaster)
                 exit()
