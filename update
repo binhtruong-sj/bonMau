@@ -4,5 +4,5 @@ mv bonMau bonMau-backup
 git clone https://github.com/binhtruong-sj/bonMau.git
 cd bonMau
 chmod +x n b update
-alias u='source update'
+alias u='cd ; source bonMau/update'
 alias n='cd ; cd bonMau ; julia runTUSAC.jl'
