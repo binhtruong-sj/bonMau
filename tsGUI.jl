@@ -1,4 +1,4 @@
-version = "0.A0b"
+version = "0.A0d"
 using GameZero
 using Sockets
 using Random: randperm
@@ -130,6 +130,9 @@ function handleNetworkError()
     while isready(channel)
         take!(channel)
     end
+    while isready(wrChannel)
+        take!(wrChannel)
+    end
 end
 
 function nwWrite()
@@ -139,6 +142,7 @@ function nwWrite()
             wrline = take!(wrChannel)
             println(remoteMaster,wrline)
         catch e
+            print("ERROR w -- close connection ",e)
             close(remoteMaster)
             handleNetworkError()
         end
@@ -153,7 +157,7 @@ function nwRead()
                 l = readline(remoteMaster)
                 put!(channel, l)
             catch e
-                print("ERROR -- close connection ",e)
+                print("ERROR r -- close connection ",e)
                 close(remoteMaster)
                 handleNetworkError()
             end
@@ -1175,9 +1179,10 @@ module TuSacManager
         return coinsArr
     end
     
-    function takeRFCoins(RF)
+    function takeRFCoins(RFaline)
         global coinsArr
-        RFaline = take!(RF)
+       
+
         println("coins: ",RFaline)
         RFp = split(RFaline,",")
         a = []
@@ -1439,25 +1444,26 @@ module TuSacManager
     
 
 
-    function takeServerTable(RF)
+    function takeServerTable(ttb)
         global mGameDeck,playerHand,playerAsset,playerDiscard
         playerHand  = []
         playerAsset = []
         playerDiscard  = []
         println("TABLE:")
-        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF))))
-        dsk = TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,take!(RF)))
+      
+        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerDiscard,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        push!(playerAsset,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
+        dsk = TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb)))
         mGameDeck = dsk
         getAllPlayerCards()
     end
@@ -1485,21 +1491,21 @@ module TuSacManager
     end
 
 
-    function takeRF_Ills(RF)
-        l1 = take!(RF)
+    function takeRF_Ills(l1s)
+        l1 = popfirst!(l1s)
         c = split(l1," ")
         illpairs = []
         for i in 1:lastindex(c)
             c[i] != "" && (push!(illpairs,TuSacCards.cardStrToVal(c[i])))
         end
-        l1 = take!(RF)
+        l1 = popfirst!(l1s)
         c = split(l1," ")
         illsuits = []
         for i in 1:lastindex(c)
             c[i] != "" && (push!(illsuits,TuSacCards.cardStrToVal(c[i])))
         end
         pair3s = []
-        l1 = take!(RF)
+        l1 = popfirst!(l1s)
         c = split(l1," ")
         for i in 1:lastindex(c)
             c[i] != "" && (push!(pair3s,TuSacCards.cardStrToVal(c[i])))
@@ -6235,90 +6241,117 @@ function gsStateMachine(gameActions)
 
     elseif tusacState == tsSdealCards
 # -------------------A
-        global cardsIndxArr = []
-        global GUI_ready = false
-    #    if gameActions == gsOrganize
-            if okToPrint(0x1)
-                println("Prev Game Winner =", gameEnd)
-            end
-            global restartFlag = true
-            prevWinner = gameEnd
-            global gameEnd = 0
-            global FaceDown = wantFaceDown
-            tusacDeal(prevWinner)
-            if okToPrint(0x5)
-                println("\nDealing is completed,prevWinner=",prevWinner)
-            end
-            TuSacManager.init()
-            autoMode1 = false
-            global FaceDown = true
-            #TuSacManager.readServerTable(remoteMaster)
-            TuSacManager.takeServerTable(channel)
-            #coinsArr = TuSacManager.readRFCoins(remoteMaster)
-            coinsArr = TuSacManager.takeRFCoins(channel)
-            #illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
-            illegalPairs,illegalSuits,pair3s = TuSacManager.takeRF_Ills(channel)
-            #println(remoteMaster,"Ack")
-            put!(wrChannel,"Ack")
-            if okToPrint(0x90)
-                println("Ill_pairs ",ts(illegalPairs))
-                println("Ill_suits ",ts(illegalSuits))
-                println("pair3s ",ts(pair3s))
-                println("coins=",coinsArr)
-            end
-            all = TuSacManager.getTable()
-            pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
-            global playerA_hand = pHand[1]
-            global playerB_hand = pHand[2]
-            global playerC_hand = pHand[3]
-            global playerD_hand = pHand[4]
-            global playerA_discards=pDiscard[1]
-            global playerB_discards=pDiscard[2]
-            global playerC_discards=pDiscard[3]
-            global playerD_discards=pDiscard[4]
-            global playerA_assets= pAsset[1]
-            global playerB_assets= pAsset[2]
-            global playerC_assets= pAsset[3]
-            global playerD_assets= pAsset[4]
-
-            gameDeck = pGameDeck
-            getData_all_hands()
-            getData_all_discard_assets()
-
-            coins = []
-            global gameStart = true
-      
-            coinsCnt = 0
-            for p in 1:4
-                for i in 1:2
-                    c = coinsArr[p][i]
-                    if c > 0
-                        m = c
-                        while m > 0
-                            createCoin(i,p,coinsCnt)
-                            coinsCnt += 1
-                            m -= 1
+        while true
+            !networkSetup && thinNetworkInit()
+            while true
+                global cardsIndxArr = []
+                global GUI_ready = false
+            #    if gameActions == gsOrganize
+                    if okToPrint(0x1)
+                        println("Prev Game Winner =", gameEnd)
+                    end
+                    global restartFlag = true
+                    prevWinner = gameEnd
+                    global gameEnd = 0
+                    global FaceDown = wantFaceDown
+                    tusacDeal(prevWinner)
+                    if okToPrint(0x5)
+                        println("\nDealing is completed,prevWinner=",prevWinner)
+                    end
+                    TuSacManager.init()
+                    autoMode1 = false
+                    global FaceDown = true
+                    #TuSacManager.readServerTable(remoteMaster)
+                    ttb = []
+                    for i in 1:13
+                        if networkSetup 
+                            push!(ttb,take!(channel))
+                        else
+                            break
                         end
                     end
+                    TuSacManager.takeServerTable(ttb)
+                    #coinsArr = TuSacManager.readRFCoins(remoteMaster)
+                    RFaline = take!(channel)
+                    !networkSetup && break
+                    coinsArr = TuSacManager.takeRFCoins(RFaline)
+
+                    #illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
+                    l1s = []
+                    push!(l1s,take!(channel))
+                    !networkSetup && break 
+                    push!(l1s,take!(channel))
+                    !networkSetup && break
+                    push!(l1s,take!(channel))
+                    !networkSetup && break
+            
+                    illegalPairs,illegalSuits,pair3s = TuSacManager.takeRF_Ills(l1s)
+                    #println(remoteMaster,"Ack")
+
+                    put!(wrChannel,"Ack")
+                    if okToPrint(0x90)
+                        println("Ill_pairs ",ts(illegalPairs))
+                        println("Ill_suits ",ts(illegalSuits))
+                        println("pair3s ",ts(pair3s))
+                        println("coins=",coinsArr)
+                    end
+                    all = TuSacManager.getTable()
+                    pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
+                    global playerA_hand = pHand[1]
+                    global playerB_hand = pHand[2]
+                    global playerC_hand = pHand[3]
+                    global playerD_hand = pHand[4]
+                    global playerA_discards=pDiscard[1]
+                    global playerB_discards=pDiscard[2]
+                    global playerC_discards=pDiscard[3]
+                    global playerD_discards=pDiscard[4]
+                    global playerA_assets= pAsset[1]
+                    global playerB_assets= pAsset[2]
+                    global playerC_assets= pAsset[3]
+                    global playerD_assets= pAsset[4]
+
+                    gameDeck = pGameDeck
+                    getData_all_hands()
+                    getData_all_discard_assets()
+
+                    coins = []
+                    global gameStart = true
+            
+                    coinsCnt = 0
+                    for p in 1:4
+                        for i in 1:2
+                            c = coinsArr[p][i]
+                            if c > 0
+                                m = c
+                                while m > 0
+                                    createCoin(i,p,coinsCnt)
+                                    coinsCnt += 1
+                                    m -= 1
+                                end
+                            end
+                        end
+                    end
+
+                    global gameDeckArray = TuSacCards.toValueArray(gameDeck)
+                    replayHistory(0)
+                
+
+                global gameEnd = 0
+                if okToPrint(0x1)
+                    println("Starting game, e-",gameEnd)
                 end
+                global currentAction = gpPlay1card
+                global glNeedaPlayCard = true
+
+                if coldStart
+                    global glPrevPlayer = 1
+                else
+                    global glPrevPlayer = prevWinner
+                    global shufflePlayer = prevWinner ==  1  ? 4 : prevWinner - 1
+                end
+                networkSetup && break
             end
-
-            global gameDeckArray = TuSacCards.toValueArray(gameDeck)
-            replayHistory(0)
-         
-
-        global gameEnd = 0
-        if okToPrint(0x1)
-            println("Starting game, e-",gameEnd)
-        end
-        global currentAction = gpPlay1card
-        global glNeedaPlayCard = true
-
-        if coldStart
-            global glPrevPlayer = 1
-        else
-            global glPrevPlayer = prevWinner
-            global shufflePlayer = prevWinner ==  1  ? 4 : prevWinner - 1
+            networkSetup && break
         end
         global glIterationCnt = 0
         SNAPSHOT()
@@ -7414,40 +7447,19 @@ end
 
 function checkForRestart()
     if isGameOver()
-        if !networkSetup
-            gsStateMachine(gsRestart)
-        elseif numberOfSocketPlayer > 0
-            if isServer()
-                so = numberOfSocketPlayer
-                for p in 2:4
-                    if PlayerList[p] == plSocket
-                        nwAPI.nw_sendTextToPlayer(p,nwPlayer[p],"restart")
-                        if so == 1
-                            break
-                        else
-                            so -= 1
-                        end
-                    end
-                end
-                gsStateMachine(gsRestart)
-            else
-                msg = nwAPI.nw_receiveTextFromMaster(nwMaster)
-                if msg == "restart"
-                    gsStateMachine(gsRestart)
-                end
-            end
-        else
+        if networkSetup
+         
             try
                 #println(remoteMaster,"Restart")
                 put!(wrChannel,"Restart")
             catch e
                 close(remoteMaster)
-                exit()
+                global networkSetup = false
             end
 
-            gsStateMachine(gsRestart)
-
         end
+        gsStateMachine(gsRestart)
+
     end
 end
 

@@ -1,4 +1,4 @@
-version = "0.700"
+version = "0.62u"
 using Sockets
 using Random: randperm
 using Printf
@@ -671,7 +671,7 @@ end # module
 """
  Game Manager
 """
-module TuSacProcessor
+module TuSacManager
     using Random: randperm
     import Random: shuffle!
     using ..TuSacCards
@@ -715,42 +715,37 @@ module TuSacProcessor
     boDoiFlag = (aiTrait .& 0x1 ) .!= 0
     mydefensiveFlag = defensiveFlag .& ((aiTrait .& 0x2) .!= 0)
 
+    playerSuitsCnt = zeros(UInt8,4)
+    PlayedCardCnt = zeros(UInt8,32)
 
     drawCnt = 1
     gsHcnt = 1
 
+    deadCards = [[],[],[],[]]
     prevDeck = false
     prevCard = 0x00
     prevN1 = 0
+    probableCards = [[],[],[],[]]
     noSingle = [false,false,false,false]
     all_assets_marks = zeros(UInt8,128)
-    
-    playerHand = [[],[],[],[]]
-    playerAsset = [[],[],[],[]]
-    playerDiscard = [[],[],[],[]]
-    mGameDeck = []
-
     matchSingle = zeros(UInt8,4)
     Tuong = zeros(UInt8,4)
     vPlayerHand = []
     vPlayerAsset = []
     vPlayerDiscard = []
+    playerHand = [[],[],[],[]]
+    playerAsset = [[],[],[],[]]
+    playerDiscard = [[],[],[],[]]
+    mGameDeck = []
     vGameDeck = []
     coinsArr = []
     khui = [1,1,1,1]
     kpoints = zeros(Int8,4)
     nDead=[[],[],[],[]]
-    playerSuitsCnt = zeros(UInt8,4)
-    PlayedCardCnt = zeros(UInt8,32)
-    deadCards = [[],[],[],[]]
-    probableCards = [[],[],[],[]]
-
-    highValue = zeros(UInt8,4)
-
-
     boDoiFlag = (aiTrait .& 0x1 ) .!= 0
     notDoneInit = true
 
+    highValue = zeros(UInt8,4)
 
     coDoiPlayer = 0
     coDoiCards = []
@@ -1071,7 +1066,7 @@ module TuSacProcessor
             print(i,": ");ts_s(ah)
         end
         println("gameDeck")
-        println(ts(vGameDeck))
+        println(mGameDeck)
         println()
     end
 
@@ -1688,7 +1683,7 @@ module TuSacProcessor
     function print_mvArray(gameOver)
         print("Move Array: ")
         print(gameOver ? "gameOver," : "cont,")
-        for ar in TuSacProcessor.mvArray
+        for ar in TuSacManager.mvArray
             print(ar[1]," ",ar[2]," ",ts(ar[3]),",")
         end
         println()
@@ -1765,7 +1760,7 @@ module TuSacProcessor
         println("remove-",(isDeck, n, cards))
 
         if isDeck
-         #   nc = pop!(mGameDeck, 1)
+            nc = pop!(mGameDeck, 1)
             nca = pop!(vGameDeck)
             push!(mvArray,(1,0,nca))
 
@@ -1781,7 +1776,7 @@ module TuSacProcessor
                         break
                     end
                 end
-            #    pop!(playerHand[n],ts(c))
+                pop!(playerHand[n],ts(c))
             end
             return []
         end
@@ -1802,11 +1797,11 @@ module TuSacProcessor
             else
                 push!(vPlayerDiscard[n], c)
             end
-       #=      if discardCard == false
+            if discardCard == false
                 push!(playerAsset[n],ts(c))
             else
                 push!(playerDiscard[n],ts(c))
-            end =#
+            end
         end
     end
 
@@ -1948,94 +1943,7 @@ module TuSacProcessor
             end
         end
     end
-    function eraseEverything()
-        global matchSingle ,
-        Tuong ,
-        vPlayerHand ,
-        vPlayerAsset ,
-        vPlayerDiscard ,
-        vGameDeck ,
-        coinsArr ,
-        khui ,
-        kpoints ,
-        nDead,
-        playerSuitsCnt ,
-        PlayedCardCnt ,
-        deadCards ,
-        probableCards 
 
-        vPlayerAsset = []
-        vPlayerHand = []
-        vPlayerDiscard = []
-        vGameDeck = []
-
-    end
-    function backupEverything() 
-        global matchSingle ,
-        Tuong ,
-        vPlayerHand ,
-        vPlayerAsset ,
-        vPlayerDiscard ,
-        vGameDeck ,
-        coinsArr ,
-        khui ,
-        kpoints ,
-        nDead,
-        playerSuitsCnt ,
-        PlayedCardCnt ,
-        deadCards ,
-        probableCards 
-
-
-        everyThing = matchSingle ,
-        Tuong ,
-        vPlayerHand ,
-        vPlayerAsset ,
-        vPlayerDiscard ,
-        vGameDeck ,
-        coinsArr ,
-        khui ,
-        kpoints ,
-        nDead,
-        playerSuitsCnt ,
-        PlayedCardCnt ,
-        deadCards ,
-        probableCards 
-        return everyThing
-    end
-
-    function restoreEverthing(everything)
-        global matchSingle ,
-        Tuong ,
-        vPlayerHand ,
-        vPlayerAsset ,
-        vPlayerDiscard ,
-        vGameDeck ,
-        coinsArr ,
-        khui ,
-        kpoints ,
-        nDead,
-        playerSuitsCnt ,
-        PlayedCardCnt ,
-        deadCards ,
-        probableCards 
-
-        matchSingle ,
-        Tuong ,
-        vPlayerHand ,
-        vPlayerAsset ,
-        vPlayerDiscard ,
-        vGameDeck ,
-        coinsArr ,
-        khui ,
-        kpoints ,
-        nDead,
-        playerSuitsCnt ,
-        PlayedCardCnt ,
-        deadCards ,
-        probableCards = everything
-
-    end
     function getTable()
         global playerHand,playerAsset,playerDiscard,vPlayerHand,vPlayerAsset,vPlayerDiscard
 
@@ -3487,7 +3395,7 @@ function config(fn)
                 bodoiInspect = rl[2] == "true"
             elseif lcCmp(keyword,"noRandom")
                 noRandom = rl[2] == "true"
-                TuSacProcessor.setNoRandom(noRandom)
+                TuSacManager.setNoRandom(noRandom)
             elseif lcCmp(keyword,"emBai")
                 emBaiLimit += [parse(Int,rl[2]),parse(Int,rl[3]),parse(Int,rl[4]),parse(Int,rl[5])]
                 println("Modified Em-bai limit = ",emBaiLimit)
@@ -3509,14 +3417,14 @@ function config(fn)
             elseif lcCmp(keyword,"allowPrint")
                 stickyAllowPrint = allowPrint = parse(Int,rl[2])
                 TuSacCards.allwPrint(allowPrint)
-                TuSacProcessor.allwPrint(allowPrint)
+                TuSacManager.allwPrint(allowPrint)
             elseif lcCmp(keyword,"aiTrait")
                     aiTrait = [parse(Int,rl[2]),parse(Int,rl[3]),parse(Int,rl[4]),parse(Int,rl[5])]
                     aiType = aiTrait .>> 2
                     
 
                     println("AITYPE=", (aiTrait,aiType))
-                    TuSacProcessor.setAITRAIT(aiTrait)
+                    TuSacManager.setAITRAIT(aiTrait)
                     playerName = setPlayerName(playerRootName,aiTrait)
                     boDoiFlag = (aiTrait .& 0x1 ) .!= 0
                     mydefensiveFlag = defensiveFlag .& ((aiTrait .& 0x2) .!= 0)
@@ -4281,7 +4189,7 @@ function processClientCmd(line,HF,player)
 
     if l1== 'C'
         if achar == 'T'
-            TuSacProcessor.printTable(HF)
+            TuSacManager.printTable(HF)
         elseif achar == 'C'
             print(HF,"C, 1")
             for p in 1:4
@@ -4315,7 +4223,7 @@ function checkWrite(i,str)
             break
         end
         astr = string("Wait for WritData $i to be empty, WriteData= ",writeData[i]," ready =",
-        TuSacProcessor.gameReady," writeCnt=",writeCnt[i])
+        TuSacManager.gameReady," writeCnt=",writeCnt[i])
         filterprintln(i,astr,saveStr)
     end
    okToPrint(0x80) && println("APL: send $i \"$str\"")
@@ -4390,6 +4298,7 @@ function strToCards(hand, astr)
     end
     return ignore
 end
+
 function waitForSocket(player,aiCMD,wsCMD)
     global writeData, readData,writeCnt, vHand
     
@@ -4407,7 +4316,7 @@ function waitForSocket(player,aiCMD,wsCMD)
     if line == "." 
         cards = []
     else
-        cards = strToCards(TuSacProcessor.vPlayerHand[player],line)
+        cards = strToCards(TuSacManager.vPlayerHand[player],line)
     end
     
     return cards
@@ -4520,7 +4429,6 @@ end
 
 pots = [0,0,0,0]
 tempP = [0,0,0,0]
-ev1 = []
 function doMain()
     global promptData = "P"
 
@@ -4529,10 +4437,10 @@ function doMain()
         atPlayer, playaCard, prevWinner, playersType, playersTypeLive, playersInGame
       
         gameReady = false
-        TuSacProcessor.init()
-        TuSacProcessor.doShuffle(10)
-        TuSacProcessor.dealCards(prevWinner)
-        all = TuSacProcessor.getTable()
+        TuSacManager.init()
+        TuSacManager.doShuffle(10)
+        TuSacManager.dealCards(prevWinner)
+        all = TuSacManager.getTable()
         pHand,pAsset,pDiscard,pGameDeck,vHand,vAsset,vDiscard,vGameDeck = all
 
         global playerA_hand = pHand[1]
@@ -4542,9 +4450,9 @@ function doMain()
         global gameDeck = pGameDeck
         getData_all_hands()
         getData_all_discard_assets()
-        TuSacProcessor.initialScan(all_hands)
+        TuSacManager.initialScan(all_hands)
         for i in 1:4
-            p,s,p3 =TuSacProcessor.illegalScan(i)
+            p,s,p3 =TuSacManager.illegalScan(i)
             println("$i PAIRS,SUITS,Pair3-------------------")
             e = p
             println(ts(e))
@@ -4554,14 +4462,15 @@ function doMain()
             println(ts(e))
         end
         printAllInfo()
-        TuSacProcessor.setReady()
+        TuSacManager.setReady()
+
         atPlayer = prevWinner
         playaCard = true
         gameOver = false
         nPlayer = [0,0,0,0]
         prompt()
         playersInGame = deepcopy(playersType)
-        ev1 = TuSacProcessor.backupEverything()
+
         while !gameOver
             global gameOver, playersReply
             for i in 1:noPlayerTimeOut/2
@@ -4571,15 +4480,13 @@ function doMain()
                     break
                 end
             end
-            TuSacProcessor.restoreEverthing(ev1)
-
             playersType = deepcopy(playersTypeLive)
             pcards = []
             cmd = []
             println("ActivePlayer = ",atPlayer)
-            TuSacProcessor.reset_mvArray()
+            TuSacManager.reset_mvArray()
             playersReply = ["","","",""]
-            rcCard = playaCard ? TuSacProcessor.play1Card(atPlayer) : TuSacProcessor.getDeckCard()
+            rcCard = playaCard ? TuSacManager.play1Card(atPlayer) : TuSacManager.getDeckCard()
             if playaCard && playersType[atPlayer] == PTsocket
                 okToPrint(0x80) && println("SENDTOSOCK",(atPlayer,playaCard,ts(rcCard)))
 
@@ -4593,13 +4500,13 @@ function doMain()
                 nPlayer[i] = nextPlayer(nPlayer[i-1])
             end
             okToPrint(0x4) && println("players=",(nPlayer),(playersType))
-            push!(pcards,playaCard ? activeCard : TuSacProcessor.Match1or2Card(activeCard,nPlayer[1]))
+            push!(pcards,playaCard ? activeCard : TuSacManager.Match1or2Card(activeCard,nPlayer[1]))
             push!(cmd,"M")
-            push!(pcards,TuSacProcessor.Match1or2Card(activeCard,nPlayer[2]))
+            push!(pcards,TuSacManager.Match1or2Card(activeCard,nPlayer[2]))
             push!(cmd,"M")
 
             for i in 3:4
-               push!(pcards, TuSacProcessor.Match2Card(activeCard,nPlayer[i]))
+               push!(pcards, TuSacManager.Match2Card(activeCard,nPlayer[i]))
                push!(cmd,"m")
             end
             beginI = playaCard ? 2 : 1
@@ -4616,73 +4523,73 @@ function doMain()
                     pcards[i] = waitForSocket(p,pcards[i], cmd[i])
                 end
             end
-            gWinner,nWin,nr = TuSacProcessor.whoWinRnd(activeCard,playaCard,nPlayer[1],pcards)
+            gWinner,nWin,nr = TuSacManager.whoWinRnd(activeCard,playaCard,nPlayer[1],pcards)
 
             if playaCard 
-                TuSacProcessor.removeCards!(false,nPlayer[1] ,activeCard)
+                TuSacManager.removeCards!(false,nPlayer[1] ,activeCard)
             else
-                TuSacProcessor.removeCards!(true,0,0)
+                TuSacManager.removeCards!(true,0,0)
             end
               
             noWin =  (nWin == 0) && (length(nr) == 0)
             if noWin # nobody win
-                TuSacProcessor.addCards!(true,nPlayer[1],activeCard)
+                TuSacManager.addCards!(true,nPlayer[1],activeCard)
                 atPlayer = nPlayer[2]
                 playaCard = false
             else
-                TuSacProcessor.removeCards!(false,gWinner,nr)
-                TuSacProcessor.addCards!(false,gWinner,activeCard)
-                TuSacProcessor.addCards!(false,gWinner,nr)
-                TuSacProcessor.pointsUpdate(gWinner,nr,activeCard)
+                TuSacManager.removeCards!(false,gWinner,nr)
+                TuSacManager.addCards!(false,gWinner,activeCard)
+                TuSacManager.addCards!(false,gWinner,nr)
+                TuSacManager.pointsUpdate(gWinner,nr,activeCard)
               
                 atPlayer = gWinner
                 playaCard = true
             end
-            if TuSacProcessor.coDoiPlayer > 0 && ((TuSacProcessor.coDoiPlayer != gWinner ) || noWin)
-                okToPrint(0x80) && print("Bo-doi! ",(gWinner,TuSacProcessor.coDoiPlayer))
-                okToPrint(0x80) && println(ts(TuSacProcessor.coDoiCards))
-                TuSacProcessor.removeCards!(false,TuSacProcessor.coDoiPlayer,TuSacProcessor.coDoiCards)
-                TuSacProcessor.addCards!(false,TuSacProcessor.coDoiPlayer,TuSacProcessor.coDoiCards)
+            if TuSacManager.coDoiPlayer > 0 && ((TuSacManager.coDoiPlayer != gWinner ) || noWin)
+                okToPrint(0x80) && print("Bo-doi! ",(gWinner,TuSacManager.coDoiPlayer))
+                okToPrint(0x80) && println(ts(TuSacManager.coDoiCards))
+                TuSacManager.removeCards!(false,TuSacManager.coDoiPlayer,TuSacManager.coDoiCards)
+                TuSacManager.addCards!(false,TuSacManager.coDoiPlayer,TuSacManager.coDoiCards)
             end
             gameOver = nWin == 0xFE
           
             if gameOver 
                 prevWinner = gWinner
-                TuSacProcessor.pointsCalc(gWinner)
+                TuSacManager.pointsCalc(gWinner)
                 for n in 1:4
-                    pots[n] += TuSacProcessor.kpoints[n]
+                    pots[n] += TuSacManager.kpoints[n]
                 end
-                println("Points =", TuSacProcessor.kpoints[gWinner], " Pots=",pots[gWinner])
-                global tempP = TuSacProcessor.kpoints
+                println("Points =", TuSacManager.kpoints[gWinner], " Pots=",pots[gWinner])
+                global tempP = TuSacManager.kpoints
                 global sendName = [true,true,true,true]
                 for i in 1:4
                     if (gWinner != i) && (playersInGame[i] == PTsocket) && (playersInGame[gWinner] == PTsocket)
-                        playersPayout[gWinner][i] += TuSacProcessor.kpoints[gWinner] 
+                        playersPayout[gWinner][i] += TuSacManager.kpoints[gWinner] 
                     end
                 end
                 for i in 1:4
                     if i != gWinner
                         for j in 1:4
                             if (j != i) && (playersInGame[i] == PTsocket) && (playersInGame[j] == PTsocket)
-                                playersPayout[i][j] += TuSacProcessor.kpoints[i]
+                                playersPayout[i][j] += TuSacManager.kpoints[i]
                             end
                         end
                     end
                 end
             end
-            if TuSacProcessor.baiThui()
+            if TuSacManager.baiThui()
                 gameOver = true
                 gWinner = 5
-                TuSacProcessor.pointsCalc(gWinner)
+                TuSacManager.pointsCalc(gWinner)
             end
   
             if gameOver
-                TuSacProcessor.resetReady()
+                TuSacManager.resetReady()
             end
-            okToPrint(0x80) && println(TuSacProcessor.string_TArray(gameOver,1,gWinner))
+            okToPrint(0x80) && println(TuSacManager.string_TArray(gameOver,1,gWinner))
             for i in 1:4
                 if playersType[i] == PTsocket
-                    astr = TuSacProcessor.string_TArray(gameOver,i,gWinner)
+                    astr = TuSacManager.string_TArray(gameOver,i,gWinner)
                     sendToSocket(i,astr)
                 end
                 if playersTypeDelay[i] > PTai
@@ -4693,11 +4600,8 @@ function doMain()
                 (playersType[i] == PTsocket) && waitForSocket(i)
             end
             println(playersType,playersTypeLive,pots)
-            TuSacProcessor.printTable()
-            ev1 = TuSacProcessor.backupEverything()
-            TuSacProcessor.eraseEverything()
-            ev2 = TuSacProcessor.backupEverything()
-            println("sizeof everything =", (sizeof(ev1),sizeof(ev2)))
+            TuSacManager.printTable()
+
             prompt()
 
         end
@@ -4705,7 +4609,7 @@ function doMain()
 end
 
 sendName   = [false,false,false,false]
-playerName = ["Robo1","Robo2","Robo3","Robo4"]
+playerName = ["Robo","Robo","Robo","Robo"]
 cleanupCnt = [0,0,0,0]
 
 function doNW()
@@ -4776,9 +4680,13 @@ function doNW()
             writeCnt[i] = 1
             astr = string(i,"\n")
             t = Timer(_ -> cleanup(i,conn), 30)
-
-            print(conn,astr)
-            line = readline(conn)
+            try
+                print(conn,astr)
+                line = readline(conn)
+            catch e
+                close(conn)
+                close(t)
+            end
             close(t)
           
             @spawn networkLoop(clientId,conn)
@@ -4788,26 +4696,32 @@ function doNW()
         
     end
 end
+const maxCnt = 3
 
-function chkcleanup(myID,myConn)
-    cleanupCnt[myID] += 1
+function chkcleanup(myId,myConn)
+    cleanupCnt[myId] += 1
     playersCount = sum(playersTypeLive) 
-    playersCount > 1 && (cleanupCnt[myID] % 8 == 0) && println(" ---Trigger --------------------Cnt = ", cleanupCnt[myID])
-    (playersCount > 1) && (cleanupCnt[myID] > 30) && cleanup(myID,myConn)
+    if playersCount > 1 && (cleanupCnt[myId] >  maxCnt) 
+        t1 = Timer(_ -> cleanup(myId,myConn), 5)
+        println(myConn,"C")
+        print("ping ")
+        close(t1)
+        cleanupCnt[myId] = 0
+    end
 end
 
-function cleanup(myID,myConn)
-    close(playersSocket[myID])
-    global readData[myID] = "="
-    global writeData[myID] = ""
-    global playerName[myID] = string("Robo ")
+function cleanup(myId,myConn)
+    close(playersSocket[myId])
+    global readData[myId] = "="
+    global writeData[myId] = ""
+    global playerName[myId] = string("Robo ")
     global sendName = [true,true,true,true]
-    global playersTypeLive[myID] = PTai
-    global playersTypeDelay[myID] = PTsocket + PTsocket
-    global playersType[myID] = PTai
+    global playersTypeLive[myId] = PTai
+    global playersTypeDelay[myId] = PTsocket + PTsocket
+    global playersType[myId] = PTai
     global promptData = promptData == "C" ? promptData = "" : promptData
     close(myConn)
-    println("Player $myID disconnected")
+    println("Player $myId disconnected")
     return
 end
 function sendNewName(myId,myConn)
@@ -4847,18 +4761,19 @@ end
 
 
 function networkLoop(myId,myConn)
-    ftimeout = 15
     saveStr = ""
     saveStr1 = ["","","",""]
     while true
+        ftimeout = 120
+
         global loopCnt
         gameOver = false
         writeData[myId] = " "
-        while TuSacProcessor.gameReady == false
+        while TuSacManager.gameReady == false
             sleep(.5)
         end
-        astr = TuSacProcessor.strTable(myId)
-        astr = string(astr,TuSacProcessor.strCoins(myId))
+        astr = TuSacManager.strTable(myId)
+        astr = string(astr,TuSacManager.strCoins(myId))
         print(astr)
         t = Timer(_ -> chkcleanup(myId,myConn), ftimeout, interval = ftimeout)
 
@@ -4876,6 +4791,8 @@ function networkLoop(myId,myConn)
         while !gameOver
             global writeData, readData, readyToRead, playersTypeLive,playersType,
                 loopCnt,sendName,playerName,timeout
+                ftimeout = 5
+
             while length(writeData[myId]) == 0 
                 sleep(1)
             end
@@ -4887,7 +4804,7 @@ function networkLoop(myId,myConn)
             t = Timer(_ -> chkcleanup(myId,myConn), ftimeout, interval = ftimeout)
             try
                 print(myConn,line)
-            catch 
+            catch
                 cleanup(myId,myConn)
                 return
             finally
@@ -4907,13 +4824,15 @@ function networkLoop(myId,myConn)
                     !gameOver && (readData[myId] = line)
                 end
 
-            catch e
+            catch
                 cleanup(myId,myConn)
                 return
             finally
                 close(t)
             end
         end
+        ftimeout = 120
+
         cleanupCnt[myId] = 0
         t = Timer(_ -> chkcleanup(myId,myConn), ftimeout*20, interval = ftimeout*20)
         try
