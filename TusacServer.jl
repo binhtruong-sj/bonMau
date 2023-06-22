@@ -4609,7 +4609,7 @@ function doMain()
 end
 
 sendName   = [false,false,false,false]
-playerName = ["Robo","Robo","Robo","Robo"]
+playerName = ["Robo1","Robo2","Robo3","Robo4"]
 cleanupCnt = [0,0,0,0]
 
 function doNW()
@@ -4748,7 +4748,7 @@ function sendNewName(myId,myConn)
         try
             print(myConn,astr)
             line = readline(myConn)
-            okToPrint(0x80) && println(myId," ",line)
+            println(myId," ",line)
 
         catch e
             cleanup(myId,myConn)
@@ -4847,6 +4847,5 @@ function networkLoop(myId,myConn)
         readData[myId] = "+"
     end
 end
-
-@spawn doNW()
-doMain()
+@spawn doMain()
+doNW()
