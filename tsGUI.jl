@@ -1,4 +1,4 @@
-version = "0.A0d"
+version = "0.A0n"
 using GameZero
 using Sockets
 using Random: randperm
@@ -29,10 +29,12 @@ const bAI = 4
 autoMode = false
 autoMode1 = false
 function setPlayerName(root,trait)
+    global playerName
     n = ["","","",""]
     for i in 1:4
         n[i] = string(root[i],trait[i])
     end
+    playerName = n
     return n
 end
 cFlag = true
@@ -76,7 +78,8 @@ GUIname = Vector{Any}(undef,4)
 boDoiPic = Vector{Any}(undef,4)
 numberOfSocketPlayer = 0
 playerRootName = ["Bbot","Bbot","Bbot","Bbot"]
-playerName = setPlayerName(playerRootName,aiTrait)
+playerName = ["","","",""]
+setPlayerName(playerRootName,aiTrait)
 shuffled = false
 coDoiPlayer = 0
 coDoiCards = []
@@ -155,6 +158,7 @@ function nwRead()
         if networkSetup == true
             try
                 l = readline(remoteMaster)
+                okToPrint(0x80) && println(">>",l)
                 put!(channel, l)
             catch e
                 print("ERROR r -- close connection ",e)
@@ -515,7 +519,7 @@ module TuSacCards
     For each card, there are duplicate of 4
     """
     duplicate() = 0:3
-
+6
     """
         suits
 
@@ -4097,11 +4101,65 @@ function clientSetup(serverURL,port)
     end
 end
 
+function chkNupdate(nw)
+    rf = open("tsGUI.jl","r")
+    myversion = readline(rf)
+
+    p = split(myversion,"=")
+    if p[1] == "version "
+        println(nw,myversion)
+        global rmversion = readline(nw)
+        println("Versions: local =$myversion, remote = ", rmversion)
+        if rmversion > myversion
+            close(rf)
+            done = false
+            while done == false
+                println("New update is available, downloading ...")
+                wf = open("tsGUI.jl","w")
+                while true
+
+                    aline = readline(nw)
+                    if aline == "#=Binh-end=#"
+                        break
+                    end
+                    println(wf,aline)
+                end
+                close(wf)
+                localfs = filesize("tsGUI.jl")
+                println(nw,localfs)
+                remotefs = readline(nw)
+                println("Local filesize =$localfs, remote filesize =$remotefs,")
+                if string(localfs) == remotefs
+                    println(" done")
+                    close(nw)
+                    exit()
+                else
+                    done = false
+                end
+            end
+        end
+    end
+end
+
 function thinNetworkInit()
     global myNAME
     global remoteMaster = clientSetup(serverURL,serverPort)
+    chkNupdate(remoteMaster)
     playerName = myNAME
-    println(remoteMaster,playerName)
+    if isfile("tsName.txt") 
+        fn = open("tsName.txt")
+        idStr = readline(fn)
+        close(fn)
+        if length(idStr) == 0
+            idStr = 0
+        end
+    else
+        idStr = string(rand(1:1000000000))
+        fn = open("tsName.txt","w")
+        println(fn,idStr)
+    end
+    println(remoteMaster,playerName,",",idStr)
+
     #put!(wrChannel,playerName)
     global playerNum =readline(remoteMaster)
     println(remoteMaster,playerNum)
@@ -5489,7 +5547,10 @@ function gamePlay1Iteration()
     if(rem(glIterationCnt,4) ==0)
        # global rdCmd = readline(remoteMaster)
         if networkSetup
-            global rdCmd = take!(channel)
+            while true
+                global rdCmd = take!(channel)
+                rdCmd[1] != "C" && break
+            end
         else
             resetGAME()
         end
@@ -5666,63 +5727,67 @@ function gamePlay1Iteration()
         end
     else
       
-        glIterationCnt += 1
-        aplayer = t1Player
+            glIterationCnt += 1
+            aplayer = t1Player
 
-        gotHumanInput = true
-       
-        for i in  1:4
-            if !(glNeedaPlayCard && (i == 4 ))
-                gotHumanInput = gotHumanInput && checkHumanResponse(aplayer,gpCheckMatch1or2,glNewCard)
-                !networkSetup && return
+            gotHumanInput = true
+        
+            for i in  1:4
+                if !(glNeedaPlayCard && (i == 4 ))
+                    gotHumanInput = gotHumanInput && checkHumanResponse(aplayer,gpCheckMatch1or2,glNewCard)
+                    !networkSetup && return
 
-            end
-            aplayer = nextPlayer(aplayer)
-        end
-        if gotHumanInput == false
-            glIterationCnt -= 1
-            return
-        end
-        if !isGameOver()
-
-            bbox1 = false
-
-        # moveStr = readline(remoteMaster)
-        if networkSetup
-            moveStr = take!(channel)
-
-        else
-            resetGAME()
-        end
-
-
-            #println(remoteMaster,"+")
-            put!(wrChannel,"+")
-            
-            okToPrint(0x90) && println("REMOTE MSG, Move array:",moveStr)
-            mvArr = split(moveStr,",")
-            for i in 3:lastindex(mvArr) -1
-                f = split(mvArr[i]," ")
-                moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
-            end
-            astr = split(mvArr[2]," ")
-            nPlayer = parse(Int,astr[2])
-            global currentPlayer = nPlayer
-            if astr[1] == "gameOver" 
-                gameOver(nPlayer)
-                if nPlayer > 4
-                    updateBaiThuiPic(1)
-                else
-                    updateWinnerPic(nPlayer)
                 end
-                global openAllCard = true
-            elseif glNeedaPlayCard
-                All_hand_updateActor(glNewCard[1],!FaceDown)
+                aplayer = nextPlayer(aplayer)
             end
-        end
+            if gotHumanInput == false
+                glIterationCnt -= 1
+                return
+            end
+            if !isGameOver()
+                bbox1 = false
+            # moveStr = readline(remoteMaster)
+                moveStr = ""
+                if networkSetup
+                    while true
+                        moveStr = take!(channel)
+                        println("MSTR=",moveStr)
+                        if moveStr != "C" 
+                            break
+                        else
+                            println("mmm=",moveStr)
+                        end
+                    end
+        
+                else
+                    resetGAME()
+                end
+                #println(remoteMaster,"+")
+                put!(wrChannel,"+")
+                
+                okToPrint(0x90) && println("REMOTE MSG, Move array:",moveStr)
+                mvArr = split(moveStr,",")
+                for i in 3:lastindex(mvArr) -1
+                    f = split(mvArr[i]," ")
+                    moveCard!(parse(Int,f[1]),parse(Int,f[2]),f[3])
+                end
+                astr = split(mvArr[2]," ")
+                nPlayer = parse(Int,astr[2])
+                global currentPlayer = nPlayer
+                if astr[1] == "gameOver" 
+                    gameOver(nPlayer)
+                    if nPlayer > 4
+                        updateBaiThuiPic(1)
+                    else
+                        updateWinnerPic(nPlayer)
+                    end
+                    global openAllCard = true
+                elseif glNeedaPlayCard
+                    All_hand_updateActor(glNewCard[1],!FaceDown)
+                end
+            end
         global FaceDown = !isGameOver()
         all_assets_marks[glNewCard] = 1
-
     end
 end
  
@@ -7067,7 +7132,7 @@ function restartGameAt(loc)
     end
     global tusacState = tsGameLoop
 end
-
+developeMode = false
 function on_key_down(g)
     global tusacState, gameDeck, mode_human,Pre_haBai,haBai,shuffled,mode,bbox,bbox1,FaceDown,
     playerA_hand,
@@ -7083,7 +7148,7 @@ function on_key_down(g)
     playerC_discards,
     playerD_discards,nameSynced,
     histFile,reloadFile,numberOfSocketPlayer, termCnt,autoMode
-        if g.keyboard.Q
+        if developeMode && g.keyboard.Q
             if mode == m_server
                 println("Server can not quit! -- game will be terminated")
                 if termCnt > 2
@@ -7095,12 +7160,15 @@ function on_key_down(g)
                 playerName[myPlayer] = string("QBot-",myPlayer)
                 nameSynced = false
             end
-        elseif g.keyboard.A
+        elseif  developeMode && g.keyboard.A
             println("A = ",autoMode)
             global autoMode = !autoMode
-        elseif g.keyboard.G
+        elseif  developeMode && g.keyboard.G
             println("G = ",autoMode1)
-            global autoMode1 = !autoMode1
+            global autoMode1 = !autoMode1   
+        elseif g.keyboard.D
+            global developeMode = true
+            println("Turning on developeMode",developeMode)
         end
 
         if tusacState == tsSdealCards && g.keyboard.enter
@@ -7111,14 +7179,14 @@ function on_key_down(g)
                 shuffled = true
                 autoHumanShuffle(4)
                 setupDrawDeck(gameDeck, GUILoc[13,1], GUILoc[13,2], 14, FaceDown)
-            elseif g.keyboard.T
+            elseif  developeMode && g.keyboard.T
                 mode_human = !mode_human
                 if mode_human == false
                     playerName[myPlayer] = string("Bot",myPlayer)
                     nameSynced = false
                 end
                 println("-switching human mode to ",mode_human)
-            elseif g.keyboard.C
+            elseif  developeMode && g.keyboard.C
                 if mode == m_standalone
                     println("Making connection to server at", serverURL)
                     mode = m_client
@@ -7130,14 +7198,14 @@ function on_key_down(g)
                         end
                     end
                 end
-            elseif g.keyboard.M
+            elseif  developeMode && g.keyboard.M
                 if mode == m_standalone || mode == m_server
                     println("Setting up to connect more Player")
                     mode = m_server
                     numberOfSocketPlayer += 1
                     networkInit()
                 end
-            elseif g.keyboard.B
+            elseif  developeMode && g.keyboard.B
                 println("Bai no tung!, (random shuffle) ")
                 randomShuffle()
                 shuffled = true
@@ -7152,7 +7220,7 @@ function on_key_down(g)
                 l = length(HISTORY)
                 replayHistory(l,HISTORY[l])
                 tusacState = tsGameLoop
-            else
+            elseif  developeMode 
                 dir = g.keyboard.LEFT ? 0 : g.keyboard.UP ? 1 : g.keyboard.RIGHT ? 2 : 3
                 global HistCnt = adjustCnt(HistCnt,length(HISTORY),dir)
                 replayHistory(HistCnt,HISTORY[HistCnt])
@@ -7164,12 +7232,12 @@ function on_key_down(g)
             global coldStart = false
             checkForRestart()
 
-        elseif g.keyboard.X
+        elseif  developeMode &&  g.keyboard.X
             SNAPSHOT() #taking last SNAPSHOT
             HistCnt = length(HISTORY)
             tusacState = tsHistory
             println("Xet bai, coi lai bai,  History mode, size=",HistCnt)
-        elseif g.keyboard.H
+        elseif  developeMode &&  g.keyboard.H
             println("Ha Bai!!!")
             Pre_haBai = true
         end
