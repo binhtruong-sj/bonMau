@@ -1,4 +1,4 @@
-version = "0.A0n"
+version = "0.A0q"
 using GameZero
 using Sockets
 using Random: randperm
@@ -127,14 +127,18 @@ channel = Channel(1)
 wrChannel = Channel(1)
 nwError = false
 
-function handleNetworkError()
+function handleNetworkError(rderr)
     global nwError = true
     global networkSetup = false
+    println("ERROR!!!!!! $rderr")
     while isready(channel)
         take!(channel)
     end
     while isready(wrChannel)
         take!(wrChannel)
+    end
+    if rderr
+        put!(channel,"E")
     end
 end
 
@@ -147,7 +151,7 @@ function nwWrite()
         catch e
             print("ERROR w -- close connection ",e)
             close(remoteMaster)
-            handleNetworkError()
+            handleNetworkError(false)
         end
     end
 end
@@ -163,7 +167,7 @@ function nwRead()
             catch e
                 print("ERROR r -- close connection ",e)
                 close(remoteMaster)
-                handleNetworkError()
+                handleNetworkError(true)
             end
         else
             sleep(.1)
@@ -4154,7 +4158,7 @@ function thinNetworkInit()
             idStr = 0
         end
     else
-        idStr = string(rand(1:1000000000))
+        idStr = string(rand(1001:1000000000))
         fn = open("tsName.txt","w")
         println(fn,idStr)
     end
@@ -5267,6 +5271,8 @@ end
 function whoWin!(cond,glIterationCnt, pcard,play3,t1Player,t2Player,t3Player,t4Player)
 end
 
+function resetGAME()
+end
 
 function removeACard!(hand, s)
     grank = "Tstcxpm"
@@ -5431,9 +5437,13 @@ function gamePlay1Iteration()
                             end
                         end
                     else
-                        if isready(channel)
+                        if isready(channel) || !networkSetup
                             if networkSetup
                                 rl = take!(channel)
+                                if rl == "E"
+                                    resetGAME()
+                                    return true
+                                end
                             else
                                 resetGAME()
                                 return true
@@ -5441,6 +5451,7 @@ function gamePlay1Iteration()
                 
                             if rl == "C"
                                 println("Keeping alive ",rl)
+                                println(remoteMaster,"c")
                             end
                         end
                         GUI && sleep(.3)
@@ -5549,6 +5560,10 @@ function gamePlay1Iteration()
         if networkSetup
             while true
                 global rdCmd = take!(channel)
+                if rdCmd == "E"
+                    resetGAME()
+                    break
+                end
                 rdCmd[1] != "C" && break
             end
         else
@@ -5565,6 +5580,9 @@ function gamePlay1Iteration()
             #global rdCmd = readline(remoteMaster)
             if networkSetup
                 global rdCmd = take!(channel)
+                if rdCmd == "E"
+                    resetGAME()
+                end
             else
                 resetGAME()
             end
@@ -5751,10 +5769,15 @@ function gamePlay1Iteration()
                 if networkSetup
                     while true
                         moveStr = take!(channel)
+                        if moveStr == "E"
+                            resetGAME()
+                            return
+                        end
                         println("MSTR=",moveStr)
                         if moveStr != "C" 
                             break
                         else
+                            println(remoteMaster,"c")
                             println("mmm=",moveStr)
                         end
                     end
@@ -6337,7 +6360,9 @@ function gsStateMachine(gameActions)
                     end
                     TuSacManager.takeServerTable(ttb)
                     #coinsArr = TuSacManager.readRFCoins(remoteMaster)
-                    RFaline = take!(channel)
+                    if networkSetup 
+                        RFaline = take!(channel)
+                    end
                     !networkSetup && break
                     coinsArr = TuSacManager.takeRFCoins(RFaline)
 
