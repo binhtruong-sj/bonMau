@@ -1,4 +1,4 @@
-version = "0.A0q"
+version = "0.A0z"
 using GameZero
 using Sockets
 using Random: randperm
@@ -162,8 +162,12 @@ function nwRead()
         if networkSetup == true
             try
                 l = readline(remoteMaster)
-                okToPrint(0x80) && println(">>",l)
-                put!(channel, l)
+                if l == "C"
+                    println(remoteMaster,"c")
+                else
+                    okToPrint(0x80) && println(">>",l)
+                    put!(channel, l)
+                end
             catch e
                 print("ERROR r -- close connection ",e)
                 close(remoteMaster)
@@ -1458,7 +1462,7 @@ module TuSacManager
         playerAsset = []
         playerDiscard  = []
         println("TABLE:")
-      
+        
         push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
         push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
         push!(playerHand,TuSacCards.Deck(TuSacCards.removeCards!(mGameDeck,popfirst!(ttb))))
@@ -3556,7 +3560,7 @@ function gameOver(n)
     global gameEnd, baiThui
     global FaceDown = false
     if n == 0
-     #   gameEnd = 0
+        gameEnd = 0
     end
     GUI && print('\u0007')
     if 0 < n < 5
@@ -3567,7 +3571,7 @@ function gameOver(n)
         end
     else
         GUI && sleep(.5)
-        if gameEnd == 0
+        if n == 5
             push!(gameDeck,ts(glNewCard))
         end
         baiThui = true
@@ -5440,7 +5444,9 @@ function gamePlay1Iteration()
                         if isready(channel) || !networkSetup
                             if networkSetup
                                 rl = take!(channel)
-                                if rl == "E"
+                                if rl == "C"
+                                    println(remoteMaster,"c")
+                                elseif rl == "E"
                                     resetGAME()
                                     return true
                                 end
@@ -5560,11 +5566,13 @@ function gamePlay1Iteration()
         if networkSetup
             while true
                 global rdCmd = take!(channel)
-                if rdCmd == "E"
+                if rdCmd == "C"
+                    println(remoteMaster,"c")
+                elseif rdCmd == "E"
                     resetGAME()
                     break
                 end
-                rdCmd[1] != "C" && break
+                rdCmd != "C" && break
             end
         else
             resetGAME()
@@ -5580,8 +5588,10 @@ function gamePlay1Iteration()
             #global rdCmd = readline(remoteMaster)
             if networkSetup
                 global rdCmd = take!(channel)
-                if rdCmd == "E"
-                    resetGAME()
+                if rdCmd == "C"
+                    println(remoteMaster,"c")
+                elseif rdCmd == "E"
+                        resetGAME()
                 end
             else
                 resetGAME()
@@ -5590,6 +5600,9 @@ function gamePlay1Iteration()
    
         end
         okToPrint(0x80) && println("Receive remote cmd = ",rdCmd)
+        if rdCmd == "E"
+            return
+        end
         global rmCmd = split(rdCmd,",")
         rmPlay1Card = rmCmd[1] == "true"
         rmActivePlayer = parse(Int,rmCmd[2])
@@ -6329,8 +6342,15 @@ function gsStateMachine(gameActions)
 
     elseif tusacState == tsSdealCards
 # -------------------A
+      
         while true
-            !networkSetup && thinNetworkInit()
+            gameEnd = 0
+            line = take!(channel)
+            if !networkSetup
+                thinNetworkInit()
+                line = take!(channel)
+            end
+
             while true
                 global cardsIndxArr = []
                 global GUI_ready = false
@@ -6342,14 +6362,17 @@ function gsStateMachine(gameActions)
                     prevWinner = gameEnd
                     global gameEnd = 0
                     global FaceDown = wantFaceDown
+                  
                     tusacDeal(prevWinner)
-                    if okToPrint(0x5)
-                        println("\nDealing is completed,prevWinner=",prevWinner)
-                    end
+                 
                     TuSacManager.init()
                     autoMode1 = false
                     global FaceDown = true
                     #TuSacManager.readServerTable(remoteMaster)
+                    println("Network Status = ",networkSetup)
+                    if !networkSetup
+                        break
+                    end
                     ttb = []
                     for i in 1:13
                         if networkSetup 
@@ -6358,12 +6381,20 @@ function gsStateMachine(gameActions)
                             break
                         end
                     end
+                    if okToPrint(0x5)
+                        println("\nDealing is completed,prevWinner=",prevWinner)
+                    end
+                    if !networkSetup
+                         break
+                    end
                     TuSacManager.takeServerTable(ttb)
                     #coinsArr = TuSacManager.readRFCoins(remoteMaster)
                     if networkSetup 
                         RFaline = take!(channel)
                     end
-                    !networkSetup && break
+                    if !networkSetup
+                        break
+                   end
                     coinsArr = TuSacManager.takeRFCoins(RFaline)
 
                     #illegalPairs,illegalSuits,pair3s = TuSacManager.readRF_Ills(remoteMaster)
@@ -6506,7 +6537,7 @@ function gsStateMachine(gameActions)
                     gamePlay1Iteration()
                     if !networkSetup
                         openAllCard = true
-                        gameOver(5)
+                        gameOver(6)
                         updateBaiThuiPic(1)
                         glIterationCnt += 50
                     end
